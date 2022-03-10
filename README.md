@@ -5,7 +5,7 @@ This study aims to computationally identify therapeutic desings for cancer e.g. 
 
 The current repository contains code for:
 1. Initial evaluation of the quality and preprocessing of the data.
-2. Comparison of the transcriptomic signatures via the GSEA score distance function[^1][^2] as adopted by this [repository](https://github.com/BioSysLab/deepSIBA) part of the deepSIBA publication[^3].
+2. Comparison of the transcriptomic signatures via the GSEA score distance function[^1][^2] as adopted by this [repository](https://github.com/BioSysLab/deepSIBA) which is part of the deepSIBA publication[^3].
 3. Machine learning algorithms to manipulate transcriptomic profiles and make disease-relevent predictions (still under development).
 
 ## Data

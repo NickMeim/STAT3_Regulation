@@ -1,2 +1,2 @@
-## Here store the results of the study
+## Here store the final results of the study
 
