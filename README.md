@@ -39,7 +39,7 @@ You can check the list bellow and manually install your preferences without runn
 **Important Note:**
 * **This installation was performed in a WINDOWS enviroment.** 
 * **For a Linux installation there might be needed some manual installation of external dependencies (especially) for tidyverse. Please check libraries' documentation online**
-* ** For a MAC installation we engourage checking online**
+* **For a MAC installation we engourage checking online**
 
 In a quick overview the following R libraries and versions (**although any version of the following libraries is appropriate**) were/are used:
 1. [R](https://cran.r-project.org/bin/windows/base/) version 4.1.2
