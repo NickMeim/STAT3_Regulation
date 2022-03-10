@@ -18,7 +18,7 @@ The transcriptomic signatures (level 5 profiles) of the L1000 CMap resource[^4] 
 2. **figures** : Folder containing the scripts to produce the figures of the study (also containing the figures).
 3. **learning (still under development)** : Folder containing machine and deep learning algorithms.
 4. **preprocessing** : Folder containing scripts to pre-process the raw data and evaluate their quality.
-	* preprocessed_results : Here the pre-processed data to be used in subsequent analysis are stored.
+	* **preprocessed_data** : Here the pre-processed data to be used in subsequent analysis are stored.
 5. **results** : Here the results of a subsequent analysis should be stored.
 
 ## Instalation
