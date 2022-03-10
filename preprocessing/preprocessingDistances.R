@@ -101,7 +101,8 @@ dist_all_dupls <- NULL
 ### RUN FIRST THE distance_scores.R
 ### SCRIPT TO LOAD THE FUNCTION!!!
 
-### calculate distances
+### calculate distances: SEE distance_scores.R
+# for information about the function inputs
 dist_all_dupls <- foreach(thres = thresholds) %dorng% {
   distance_scores(num_table = gex_dupls ,
                   threshold_count = thres,names = colnames(gex_dupls))
