@@ -5,7 +5,7 @@ This study aims to computationally identify therapeutic desings for cancer e.g. 
 
 The current repository contains code for:
 1. Initial evaluation of the quality and preprocessing of the data.
-2. Comparison of the transcriptomic signatures via the GSEA score distance function[^1][^2] as adopted by this [repository](https://github.com/BioSysLab/deepSIBA)[^3]
+2. Comparison of the transcriptomic signatures via the GSEA score distance function[^1][^2] as adopted by this [repository](https://github.com/BioSysLab/deepSIBA) part of the deepSIBA publication[^3].
 3. Machine learning algorithms to manipulate transcriptomic profiles and make disease-relevent predictions (still under development).
 
 ## Data
@@ -18,7 +18,7 @@ The transcriptomic signatures (level 5 profiles) of the L1000 CMap resource[^4] 
 2. **figures** : Folder containing the scripts to produce the figures of the study (also containing the figures).
 3. **learning (still under development)** : Folder containing machine and deep learning algorithms.
 4. **preprocessing** : Folder containing scripts to pre-process the raw data and evaluate their quality.
-	*preprocessed_results : Here the pre-processed data to be used in subsequent analysis are stored.
+	* preprocessed_results : Here the pre-processed data to be used in subsequent analysis are stored.
 5. **results** : Here the results of a subsequent analysis should be stored.
 
 ## Instalation
