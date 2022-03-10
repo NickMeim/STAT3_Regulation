@@ -11,15 +11,14 @@ The current repository contains code for:
 ## Data
 The transcriptomic signatures (level 5 profiles) of the L1000 CMap resource[^4] are used for this study, together with data from the KEGG database[^5] (accessed via the Bioconductor resource[^6]).
 
-**Detail on how to access these data can be found in the data folder**, but generally the main resources can be accessed [here](https://clue.io/data/CMap2020?fbclid=IwAR1Uc379nDYELH8lYU9MPI9TiAT3054_55g72Ymbgm7FAW7WZnPD3YBCXeI#LINCS2020)
+**Details on how to access these data can be found in the data folder**, but generally the main resources can be accessed [here](https://clue.io/data/CMap2020?fbclid=IwAR1Uc379nDYELH8lYU9MPI9TiAT3054_55g72Ymbgm7FAW7WZnPD3YBCXeI#LINCS2020)
 
 ## Folder structure
 1. **data** : Folder that should contain the raw data of the study.
 2. **figures** : Folder containing the scripts to produce the figures of the study (also containing the figures).
 3. **learning (still under development)** : Folder containing machine and deep learning algorithms.
 4. **preprocessing** : Folder containing scripts to pre-process the raw data and evaluate their quality.
-	
-	-preprocessed_results : Here the pre-processed data to be used in subsequent analysis are stored.
+		-preprocessed_results : Here the pre-processed data to be used in subsequent analysis are stored.
 5. **results** : Here the results of a subsequent analysis should be stored.
 
 ## Instalation
