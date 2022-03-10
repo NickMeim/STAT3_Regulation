@@ -25,9 +25,13 @@ The transcriptomic signatures (level 5 profiles) of the L1000 CMap resource[^4] 
 The study utilizes multiple resources from the Python and R programming languages.
 
 **R dependencies**: 
+
 If you want, you can run the setup_rlibs.R script in Rstudio or any R command line environment. 
+
 This will install **the latest versions of the libraries used (not the specific ones that were used in the study)**.
+
 **Please keep in mind that this will update some packages which may cause conflicts in your setup.**
+
 You can check the list bellow and manually install your preferences without running setup_rlibs.R (which you can open however for guidance).
 
 **Important Note:**
@@ -48,10 +52,11 @@ In a quick overview the following R libraries and versions (**although any versi
 10. [ggpubr](https://www.rdocumentation.org/packages/ggpubr/versions/0.4.0) 0.4.0
 11. [GeneExpressionSignature](https://www.bioconductor.org/packages/release/bioc/html/GeneExpressionSignature.html) 1.38.0
 
-**Python dependencies**: First install conda (anaconda) environment in your computer and then you can use the commands **in a bash-terminal** after the list of libraries.
+**Python dependencies**: 
+First install conda (anaconda) environment in your computer and then you can use the commands **in a bash-terminal** after the list of libraries.
 
 **Important Note:**
-* **Pytorch GPU installation CHANGES according to your NVIDIA GPU and cuda version. Check the [pytorch installation guide](https://pytorch.org/get-started/locally/) here for more information.
+* **Pytorch GPU installation CHANGES according to your NVIDIA GPU and cuda version. Check the [pytorch installation guide](https://pytorch.org/get-started/locally/) here for more information.**
 * **This installation was performed in a WINDOWS enviroment. For other environments check libraries' documentation** 
 
 In a quick overview the following Python libraries and versions (**although different versions are POSSIBLY also appropriate**) were/are used:
