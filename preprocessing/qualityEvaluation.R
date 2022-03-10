@@ -2,7 +2,6 @@ library(tidyverse)
 library(cmapR)
 library(org.Hs.eg.db)
 library(rhdf5)
-library(MLmetrics)
 
 library(doFuture)
 
