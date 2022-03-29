@@ -29,7 +29,7 @@ sigInfo <- read.delim('../data/siginfo_beta.txt')
 sigInfo <- sigInfo %>% 
   mutate(quality_replicates = ifelse(is_exemplar_sig==1 & qc_pass==1 & nsample>=3,1,0))
 # Filter only experiments of drugs
-sigInfo <- sigInfo %>% filter(pert_type=='trt_cp')
+sigInfo <- sigInfo %>% filter(pert_type=='trt_sh')
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
 
 # Create identifier to signify duplicate
@@ -51,7 +51,7 @@ sigList <-  split(sigIds,
 # Parallelize parse_gctx function
 
 # Path to raw data
-ds_path <- '../data/level5_beta_trt_cp_n720216x12328.gctx'
+ds_path <- '../../../../../L1000_2021_11_23/level5_beta_trt_sh_n238351x12328.gctx'
 
 # rid is the gene entrez_id to find the gene in the data
 # cid is the sig_id, meaning the sampe id
@@ -134,4 +134,20 @@ dist <- left_join(dist,duplicateSigs,by = c("Var2"="sig_id"))
 dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
 
 #Save results
-saveRDS(dist,'preprocessed_data/dupl_mean_dist.rds')
+saveRDS(dist,'../results/dupl_shRNA_mean_dist_q1replicates_5dupls_long.rds')
+
+# Distance pre-processing on the pathways level----
+
+# Perform pathway (gene set enrichment analysis)
+keegEnrichResults <-  fastenrichment(sigInfo$sig_id,
+                                     geneInfo$gene_id,
+                                     cmap,
+                                     enrichment_space = 'kegg',
+                                     n_permutations=5000)
+keggNES <- keegEnrichResults$NES$`NES KEGG`
+keggpadj <- keegEnrichResults$Pval$`Pval KEGG`
+
+saveRDS(keggNES,'../results/keggNES_shRNAs.rds')
+saveRDS(keggpadj,'../results/keggpadj_shRNAs.rds')
+
+#  
