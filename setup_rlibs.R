@@ -54,4 +54,4 @@ if (!require("doRNG", quietly = TRUE)){
   
 }
 
-
+devtools::install_github("saezlab/CARNIVAL"))
