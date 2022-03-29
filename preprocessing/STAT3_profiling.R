@@ -134,7 +134,7 @@ top_bot_indices <- function(v,num){
 
 
 log_con <- file("log.txt", open="a")
-for (j in 4:ncol(TF_activities)){
+for (j in 1:ncol(TF_activities)){
   
   cat(paste0('Iteration ',j,'/',ncol(TF_activities)), file = log_con, sep="\n")
   tf_activities <- TF_activities[which(rownames(TF_activities) %in% c(interactions$source,
@@ -147,11 +147,11 @@ for (j in 4:ncol(TF_activities)){
   names(tf_activities) <- names
   
   # Run carnival
+  # YOU MUST FIND WHERE CPLEX IS INSTALLED IN YOUR OWN COMPUTER
   CplexPath <- 'C:/Program Files/IBM/ILOG/CPLEX_Studio201/cplex/bin/x64_win64/cplex.exe'
   carnivalOptions <- defaultCplexCarnivalOptions()
   carnivalOptions$solverPath <- CplexPath
   carnivalOptions$timelimit <- 1200
-  ########### MAKE A LOOP FOR THIS TO BUILD ONE FOR ALL STAT3 PROFILES
   # Output dir
   Result_dir <- paste0("../results/stat3_networks/",colnames(TF_activities)[j])
   dir.create(Result_dir, showWarnings = FALSE)
