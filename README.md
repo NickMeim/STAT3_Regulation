@@ -58,7 +58,7 @@ In a quick overview the following R libraries and versions (**although any versi
 9. [ggplot2](https://ggplot2.tidyverse.org/) 3.3.5
 10. [ggpubr](https://www.rdocumentation.org/packages/ggpubr/versions/0.4.0) 0.4.0
 11. [GeneExpressionSignature](https://www.bioconductor.org/packages/release/bioc/html/GeneExpressionSignature.html) 1.38.0
-12. [CARNIVAL](https://saezlab.github.io/CARNIVAL/) **version 2.5.1 (It was installed via github: devtools::install_github("saezlab/CARNIVAL"))**
+12. [CARNIVAL](https://saezlab.github.io/CARNIVAL/) 2.5.1 **(It was installed via github: devtools::install_github("saezlab/CARNIVAL"))**
 
 **Python dependencies**: 
 First install conda (anaconda) environment in your computer and then you can use the commands **in a bash-terminal** after the list of libraries.
