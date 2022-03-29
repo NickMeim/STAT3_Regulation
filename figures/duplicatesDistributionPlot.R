@@ -22,7 +22,7 @@ sigInfo <- read.delim('../data/siginfo_beta.txt')
 sigInfo <- sigInfo %>% 
   mutate(quality_replicates = ifelse(is_exemplar_sig==1 & qc_pass==1 & nsample>=3,1,0))
 # Filter only experiments of drugs
-sigInfo <- sigInfo %>% filter(pert_type=='trt_cp')
+sigInfo <- sigInfo %>% filter(pert_type=='trt_sh')
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
 
 # Create identifier to signify duplicate
@@ -53,7 +53,7 @@ tas_thresholds_upper <- c(0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55)
 # based on TAS number
 plotList <- NULL
 num_of_sigs <- NULL
-
+p_vals <- NULL
 for (i in 1:length(tas_thresholds_upper)){
   
   # Calculate number of data remaining
@@ -71,6 +71,10 @@ for (i in 1:length(tas_thresholds_upper)){
   # Normalize it between 0-1
   df_dist$value <- df_dist$value/2
   
+  # Perform t-test
+  random <- df_dist %>% filter(is_duplicate=='Random Signatures')
+  dupl <- df_dist %>% filter(is_duplicate!='Random Signatures')
+  p_vals[i] <- t.test(random$value,dupl$value,'greater')$p.value
   
   # Plot the distributions and store them forn now in the list using ggplot
   plotList[[i]] <- ggplot(df_dist,aes(x=value,color=is_duplicate,fill=is_duplicate)) +
@@ -81,7 +85,7 @@ for (i in 1:length(tas_thresholds_upper)){
 }
 
 # Save all subplots/distributions into one common figure
-png(file="duplicate_vs_random_distribution.png",width=16,height=8,units = "in",res=300)
+png(file="duplicate_vs_random_distribution_shrna.png",width=16,height=8,units = "in",res=300)
 
 p <- ggarrange(plotlist=plotList,ncol=4,nrow=2,common.legend = TRUE,legend = 'right',
                labels = paste0(c('TAS>=0.15','TAΣ>=0.2','TAS>=0.25','TAS>=0.3','TAS>=0.35',
@@ -93,7 +97,7 @@ annotate_figure(p, top = text_grob("Distributions of GSEA distances for differen
                                    color = "black",face = 'plain', size = 14))
 dev.off()
 
-# Save the line-plot of how the number of availabe data
+# Save the line-plot of how the number of available data
 # changes with varying TAS thresholds
 
 #Dummy dataframe to plot
@@ -106,3 +110,7 @@ ggplot(df,aes(x=tas_thresholds_lower,y=num_of_sigs)) +
   labs(x="TAS number threshold", y = "Number of data points")+
   geom_point() +geom_line(linetype='dashed')
 dev.off()
+
+# Adjust p-values with Bonferroni and plot them
+p.adj <- p.adjust(p_vals,"bonferroni")
+hist(p.adj)
