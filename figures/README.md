@@ -2,6 +2,7 @@
 Here we have stored the figures and the scripts that produce them:
 1. duplicatesDistributionPlot.R : It plots the distribution of gene expression (GSEA) distances[^1][^2] between the duplicate signatures and random signatures.
 Duplicate signatures are experiments in which the same drug was tested on the same cell-type, with the same dose and for the same time duration.
+2. KeggDuplDistribution.R: It plots the counting and cumulative distributions of GSEA distances[^2] in KEGG pathway level. It utilizes the shRNA data.
 
 ## References
 [^1]: F. Iorio, R. Bosotti, E. Scacheri, V. Belcastro, P. Mithbaokar, R. Ferriero, L. Murino, R. Tagliaferri, N. Brunetti-Pierri and A. Isacchi, Proc. Natl. Acad. Sci. U. S. A., 2010, 107, 14621–14626
