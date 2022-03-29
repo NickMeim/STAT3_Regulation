@@ -1,7 +1,5 @@
 ## Overview
-This study aims to computationally identify therapeutic desings for cancer e.g. :
-1. Reversing NK-cells dysregulation
-2. Regulating STAT3 activity
+This study aims to computationally identify therapeutic desings to indirectly regulate STAT3 activity, a master regulator of many oncogenic signaling pathways.
 
 The current repository contains code for:
 1. Initial evaluation of the quality and preprocessing of the data.
@@ -33,7 +31,7 @@ According to the instructions [here](https://saezlab.github.io/CARNIVAL/) , the 
 
 **R dependencies**: 
 
-If you want, you can run the setup_rlibs.R script in Rstudio or any R command line environment. **If you do, first make sure you have mannually installed the devtools package which is utilized for installing R libraries from github.**
+If you want, you can run the setup_rlibs.R script in Rstudio or any R command line environment. **The only package that is not installed automatically is CARNIVAL. We encourage seeing bellow for more information if you would like to manually install it.**
 
 This will install **the latest versions of the libraries used (not the specific ones that were used in the study)**.
 
