@@ -33,7 +33,7 @@ According to the instructions [here](https://saezlab.github.io/CARNIVAL/) , the 
 
 **R dependencies**: 
 
-If you want, you can run the setup_rlibs.R script in Rstudio or any R command line environment. 
+If you want, you can run the setup_rlibs.R script in Rstudio or any R command line environment. **If you do, first make sure you have mannually installed the devtools package which is utilized for installing R libraries from github.**
 
 This will install **the latest versions of the libraries used (not the specific ones that were used in the study)**.
 
