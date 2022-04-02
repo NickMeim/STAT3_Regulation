@@ -15,6 +15,8 @@ results/stat3_shrna_tf_activities.tsv
 results/stat3_networks
 results/keggpadj_shRNAs.rds
 results/keggNES_shRNAs.rds
+results/sim_cosine_latent_5dupls.rds
+results/dist_latent_5dupls.rds
 figures/.Rhistory
 figures/.Rproj.user/
 data/geneinfo_beta.txt
