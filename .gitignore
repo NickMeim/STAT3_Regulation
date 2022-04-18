@@ -17,6 +17,12 @@ results/keggpadj_shRNAs.rds
 results/keggNES_shRNAs.rds
 results/sim_cosine_latent_5dupls.rds
 results/dist_latent_5dupls.rds
+results/latent_shrna_all_with_stat3_cosine_long_format.rds
+results/clustering200_res.rds
+results/clustering250_res.rds
+results/clustering500_res.rds
+results/df_kelbow.rds
+results/df_kelbow_2.rds
 figures/.Rhistory
 figures/.Rproj.user/
 data/geneinfo_beta.txt

@@ -189,6 +189,8 @@ for (j in 1:ncol(TF_activities)){
 close(log_con)
 
 ### Pathway analysis----
+# load pathway data
+egsea.data(species = "human",returnInfo = TRUE)
 print(all(rownames(cmap)==df_annotation$gene_symbol))
 rownames(cmap) <- df_annotation$gene_id
 keegEnrichResults <-  fastenrichment(sigInfo$sig_id,
@@ -387,3 +389,152 @@ GSEAgenes <- GSEAgenes[-which(GSEAgenes=='STAT3')]
 GSEAgenes <- data.frame(genes=GSEAgenes)
 GSEAgenes <- left_join(GSEAgenes,geneInfo,by=c("genes"="gene_symbol"))
 saveRDS(GSEAgenes,'../results/GSEAgenes.rds')
+
+## Find neighbors from autoencoder----
+# Load embeddings
+emb <- read.csv('../../shrna_embs1024.csv')
+#emb <- emb %>% mutate(shRNA='other')
+#emb$shRNA[which(emb$X %in% stat3$sig_id)] <- 'STAT3'
+emb <- emb %>% column_to_rownames('X')
+emb <- as.matrix(emb)
+gc()
+
+sigInfo <- read.delim('../data/siginfo_beta.txt')
+sigInfo <- sigInfo %>% 
+  mutate(quality_replicates = ifelse(is_exemplar_sig==1 & qc_pass==1 & nsample>=3,1,0))
+sigInfo <- sigInfo %>% filter(pert_type=='trt_sh')
+sigInfo <- sigInfo %>% filter(quality_replicates==1)
+sigInfo <- sigInfo %>% 
+  mutate(duplIdentifier = paste0(cmap_name,"_",pert_idose,"_",pert_itime,"_",cell_iname))
+
+sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
+  mutate(dupl_counts = n()) %>% ungroup()
+#sigInfo <- sigInfo %>% filter(tas>=0.5 | cmap_name=='STAT3')
+
+emb <- emb[which(rownames(emb) %in% sigInfo$sig_id),] 
+
+# # Euclidean distances or cosine similarities in latent space
+# #distance <- as.matrix(dist(emb, method = "euclidean",diag = F,upper = F))
+# library(lsa)
+# X <- t(emb)
+# distance <- cosine(X)
+# colnames(distance) <- rownames(emb)
+# rownames(distance) <- rownames(emb)
+# 
+# ### Convert matrix into data frame
+# # Keep only unique (non-self) pairs
+# distance[lower.tri(distance,diag = T)] <- -100
+# dist <- reshape2::melt(distance)
+# dist <- dist %>% filter(value != -100)
+# 
+# sigInfo <- sigInfo %>% select(sig_id,cmap_name,cell_iname,pert_idose,pert_itime,duplIdentifier) %>% unique()
+# 
+# # Merge meta-data info and distances values
+# dist <- left_join(dist,sigInfo,by = c("Var1"="sig_id"))
+# dist <- left_join(dist,sigInfo,by = c("Var2"="sig_id"))
+# dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
+# dist <- dist %>% filter(!is.na(value))
+# #saveRDS(dist,'../results/sim_cosine_latent_5dupls.rds')
+# gc()
+# 
+# # Keep only STAT3 with other candidate pairs
+# dist <- dist %>% filter(cmap_name.x=='STAT3' | cmap_name.y=='STAT3')
+# dist <- dist %>% filter(!(cmap_name.x=='STAT3' & cmap_name.y=='STAT3'))
+# dist <- dist %>% filter(cell_iname.x==cell_iname.y)
+# dist <- dist %>% mutate(cell_iname = cell_iname.x) %>% dplyr::select(-cell_iname.x,-cell_iname.y) %>% unique()
+# 
+# # # First aggregate duplicates
+# # dist <- dist %>% mutate(pairID=ifelse(cmap_name.x!='STAT3',duplIdentifier.x,duplIdentifier.y)) %>%
+# #   group_by(pairID) %>% mutate(med_value=median(value)) %>% ungroup()
+# # dist$value <- dist$med_value
+# # dist <- dist %>% dplyr::select(-med_value,-Var1,-Var2,-duplIdentifier.x,-duplIdentifier.y) %>% unique()
+# #df <- dist %>% group_by(pairID) %>% summarise(n())
+# 
+# # Get neighbors per cell
+# cells <- unique(as.character(dist$cell_iname))
+# 
+# # Filter dist
+# dist_filtered <- dist %>% filter(value>=0.3) #from duplicates distr and because it is cosine
+# 
+# # Get counts of how many times each candidate was found as a neighbor
+# genes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+# genes <- genes[-which(genes=='STAT3')]
+# 
+# dist_filtered <- dist_filtered %>% mutate(proportion=0)
+# for (i in 1:length(genes)){
+#   inds <- which(dist_filtered$cmap_name.x==genes[i] | dist_filtered$cmap_name.y==genes[i])
+#   df <- dist %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+#   df_filtered <- dist_filtered %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+#   proportion <- length(unique(df_filtered$cell_iname))/length(unique(df$cell_iname))
+#   dist_filtered$proportion[inds] <- proportion
+# }
+
+### After clustering anlysis get 250 clusters
+km <- kmeans(emb,200,iter.max = 30)
+print(all(sigInfo$sig_id==rownames(emb)))
+sigInfo <- sigInfo %>% mutate(clusters=km$cluster)
+df_info <- sigInfo %>% dplyr::select(sig_id,cmap_name,duplIdentifier,clusters) %>% unique()
+saveRDS(df_info,'../results/clustering200_res.rds')
+
+pointsInClusters <- df_info %>% group_by(clusters) %>% summarize(no_points=n_distinct(sig_id)) %>% ungroup()
+hist(pointsInClusters$no_points,breaks=50)
+df_info <- left_join(df_info,pointsInClusters)
+stat3 <- df_info %>% filter(cmap_name=='STAT3')
+stat3 <- stat3 %>% group_by(clusters) %>% mutate(proportion = n_distinct(sig_id)/17) %>% ungroup()
+
+uniqueClusterPopulations <- unique(stat3$no_points)
+
+## Sample for each population 20k times and build a NULL distribution
+NullProportions <- function(no_points,dfInfo,total_stat3=17,iters=20000){
+  points <- rep(no_points,iters)
+  prop <- NULL
+  for (i in 1:iters){
+    df_sample <-  sample_n(dfInfo, no_points)
+    prop[i] <- nrow(df_sample %>% filter(cmap_name=='STAT3'))/total_stat3
+
+  }
+  return(data.frame(points,prop))
+} 
+
+library(doRNG)
+df_nulls <- NULL
+
+### calculate distances
+df_nulls <- foreach(no = uniqueClusterPopulations) %dorng% {
+  NullProportions(no_points = no ,dfInfo = df_info)
+}
+df<- do.call(rbind,df_nulls)
+
+p_vals <- NULL
+for (i in 1:length(uniqueClusterPopulations)){
+  tmp_stat <- stat3 %>% filter(no_points==uniqueClusterPopulations[i])
+  tmp_stat <- unique(tmp_stat$proportion)
+  tmp <- df_nulls[[i]]
+  p_vals[i] <- sum(tmp$prop>=tmp_stat)/nrow(tmp)
+}
+hist(p_vals)
+p.adj <- p.adjust(p_vals,"bonferroni")
+hist(p.adj)
+print(uniqueClusterPopulations[which(p_vals<0.01)])
+noPoints <- uniqueClusterPopulations[which(p_vals<0.01)]
+clusterSTAT3 <- unique(stat3$clusters[which(stat3$no_points %in% noPoints)])
+
+# # Keep those that are similar with STAT3 in at least half of the cell-lines
+# dist_filtered <- dist_filtered %>% filter(proportion>=0.5)
+# latentgenes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+# latentgenes <- latentgenes[-which(latentgenes=='STAT3')]
+# latentgenes <- data.frame(genes=latentgenes)
+df_filtered <- df_info %>% filter(clusters %in% clusterSTAT3)
+latentgenes <- unique(df_filtered$cmap_name)
+latentgenes <- latentgenes[-which(latentgenes=='STAT3')]
+latentgenes <- data.frame(genes=latentgenes)
+geneInfo <- read.delim('../data/geneinfo_beta.txt')
+latentgenes <- left_join(latentgenes,geneInfo,by=c("genes"="gene_symbol"))
+saveRDS(latentgenes,'../results/latentgenes.rds')
+
+### Get consensus gene----
+latentgenes <- readRDS('../results/latentgenes.rds') %>% dplyr::select(genes)
+GSEAgenes <- readRDS('../results/GSEAgenes.rds')
+
+consensus <- left_join(latentgenes,GSEAgenes)
+consensus <- consensus %>% filter(!is.na(gene_id))
