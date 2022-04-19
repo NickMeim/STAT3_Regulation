@@ -23,10 +23,12 @@ results/clustering250_res.rds
 results/clustering500_res.rds
 results/df_kelbow.rds
 results/df_kelbow_2.rds
+results/GSEAgenes.xlsx
 figures/.Rhistory
 figures/.Rproj.user/
 data/geneinfo_beta.txt
 data/level5_beta_trt_cp_n720216x12328.gctx
 data/siginfo_beta.txt
 data/dorothea.tsv
+inputFile_paths
 .Rproj.user
