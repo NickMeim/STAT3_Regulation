@@ -513,12 +513,14 @@ for (i in 1:length(uniqueClusterPopulations)){
   tmp <- df_nulls[[i]]
   p_vals[i] <- sum(tmp$prop>=tmp_stat)/nrow(tmp)
 }
-hist(p_vals)
+hist(p_vals,20)
 p.adj <- p.adjust(p_vals,"bonferroni")
-hist(p.adj)
+hist(p.adj,20)
 print(uniqueClusterPopulations[which(p_vals<0.01)])
 noPoints <- uniqueClusterPopulations[which(p_vals<0.01)]
 clusterSTAT3 <- unique(stat3$clusters[which(stat3$no_points %in% noPoints)])
+stat3 <- left_join(stat3,data.frame(no_points=uniqueClusterPopulations,p_vals,p.adj))
+saveRDS(stat3,'../results/stat3_latent_clusters_withpvals.rds')
 
 # # Keep those that are similar with STAT3 in at least half of the cell-lines
 # dist_filtered <- dist_filtered %>% filter(proportion>=0.5)
