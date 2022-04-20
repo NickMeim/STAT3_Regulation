@@ -124,7 +124,7 @@ interactions <- interactions  %>% filter(n_resources>1) %>% dplyr::select(c('sou
 interactions <- interactions %>% filter(!(is_inhibition==0 & is_stimulation==0)) %>% unique()
 interactions <- interactions %>% mutate(interaction=ifelse(is_stimulation!=0,1,-1)) %>%
   dplyr::select(source,interaction,target) %>% unique()
-#write.table(interactions, file = 'preprocessed_data/FilteredOmnipath.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+#write.table(interactions, file = '../preprocessing/preprocessed_data/FilteredOmnipath.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 # Get top-bottom tfs
 top_bot_indices <- function(v,num){
