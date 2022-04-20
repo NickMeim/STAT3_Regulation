@@ -1,4 +1,4 @@
-source	interaction	target
+source	sign	target
 AKT1	1	CHUK
 PIK3R1	1	AKT1
 BCL2	-1	CASP3

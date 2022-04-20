@@ -610,6 +610,7 @@ interactions <- interactions %>% filter((source %in% nodes) & (target %in% nodes
 nodeAttr <- data.frame(node=unique(c(interactions$source,interactions$target)))
 nodeAttr <-  nodeAttr %>% mutate(feature=ifelse(node %in% latentgenes$genes,'latent',
                                               ifelse(node %in% GSEAgenes$genes,'GSEA','other')))
+colnames(interactions) <- c("source","sign","target")
 write_delim(interactions,'../results/releventInteractions.txt',delim = '\t')
 write_delim(nodeAttr,'../results/releventNodeAttr.txt',delim = '\t')
 
