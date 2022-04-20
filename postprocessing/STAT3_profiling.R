@@ -189,6 +189,50 @@ for (j in 1:ncol(TF_activities)){
 }
 close(log_con)
 
+
+## Infer a weighted representative network for STAT3
+net_files <- list.files(path='../results/stat3_networks',recursive = T,full.names = T) 
+net_files <- as.data.frame(net_files)
+net_files <- net_files %>%
+  mutate(meas = grepl(pattern = "meas_",x = net_files),
+         log = grepl(pattern = ".log",x = net_files),
+         time = grepl(pattern = "elapsed_time.txt",x = net_files),
+         res = grepl(pattern = "results_CARNIVAL.Rdata",x = net_files),
+         empty = grepl(pattern = "emptyNetwork",x = net_files),
+         lp = grepl(pattern = 'lpFile',x=net_files))
+net_files <-  net_files %>% filter(meas == F & log == F & time == F & res == F & empty == F & lp==F)
+
+match_weight <- c("nodesAttributes_1.txt","weightedModel_1.txt")
+net_files <- net_files %>% dplyr::select(net_files) %>% 
+  mutate(weighted = grepl(pattern = paste(match_weight,collapse = "|"),x = net_files))
+net_files <- net_files %>% filter(weighted == F)
+
+# Check which are edges and which are node attributes
+net_files <- net_files %>% mutate(edgeInfo = grepl(pattern = "interactions",x = net_files),
+                                  nodeInfo = grepl(pattern = "nodesActivity",x = net_files)) %>%
+  dplyr::select(-weighted)
+nodeFiles <- net_files %>% filter(nodeInfo==T)
+edgeFiles <- net_files %>% filter(edgeInfo==T)
+
+nodes <- data.frame()
+edges <- data.frame()
+for (i in 1:nrow(nodeFiles)){
+  nodes <- rbind(nodes,
+                 read.delim(nodeFiles$net_files[i]))
+  edges <- rbind(edges,
+                 read.delim(edgeFiles$net_files[i]))
+  message('Processing image ', i, ' of ', nrow(nodeFiles))
+}
+
+nodes <- aggregate(Activity~Nodes,data=nodes,mean)
+nodes <- nodes %>% mutate(AbsActivity=abs(Activity))
+nodes <- nodes %>% filter(AbsActivity>0.5)
+edges <- aggregate(Sign~Node1+Node2,data=edges,mean)
+edges <- edges %>% mutate(weight=abs(Sign),
+                          Sign=sign(Sign))
+edges <- edges %>% filter(weight>0.5) %>% filter((Node1 %in% nodes$Nodes) & (Node2 %in% nodes$Nodes))
+nodes <- nodes %>% filter(Nodes %in% unique(c(edges$Node1,edges$Node1)))
+
 ### Pathway analysis----
 # load pathway data
 egsea.data(species = "human",returnInfo = TRUE)
@@ -269,11 +313,6 @@ gene_candidates <- gene_candidates[which(gene_candidates %in% geneInfo$gene_id)]
 df_gene_canditates <- data.frame(gene_id=as.numeric(gene_candidates))
 df_gene_canditates <- left_join(df_gene_canditates,geneInfo)
 saveRDS(df_gene_canditates,'../results/gene_candidates.rds')
-
-
-# Use autoencoder to recreate this kegg pathway signature
-
-
 
 ### Therapeutic screening----
 
@@ -410,9 +449,13 @@ sigInfo <- sigInfo %>%
 
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
-#sigInfo <- sigInfo %>% filter(tas>=0.5 | cmap_name=='STAT3')
+stat3Info <- sigInfo %>% filter(cmap_name=='STAT3')
+#sigInfo <- sigInfo %>% filter(tas>=0.3)
+#sigInfo <- rbind(sigInfo,stat3Info)
+#sigInfo <- sigInfo %>% unique()
 
 emb <- emb[which(rownames(emb) %in% sigInfo$sig_id),] 
+#emb <- emb[sigInfo$sig_id,]
 
 # # Euclidean distances or cosine similarities in latent space
 # #distance <- as.matrix(dist(emb, method = "euclidean",diag = F,upper = F))
@@ -481,7 +524,7 @@ pointsInClusters <- df_info %>% group_by(clusters) %>% summarize(no_points=n_dis
 hist(pointsInClusters$no_points,breaks=50)
 df_info <- left_join(df_info,pointsInClusters)
 stat3 <- df_info %>% filter(cmap_name=='STAT3')
-stat3 <- stat3 %>% group_by(clusters) %>% mutate(proportion = n_distinct(sig_id)/17) %>% ungroup()
+stat3 <- stat3 %>% group_by(clusters) %>% mutate(proportion = n_distinct(sig_id)/nrow(stat3)) %>% ungroup()
 
 uniqueClusterPopulations <- unique(stat3$no_points)
 
@@ -519,6 +562,7 @@ hist(p.adj,20)
 print(uniqueClusterPopulations[which(p_vals<0.01)])
 noPoints <- uniqueClusterPopulations[which(p_vals<0.01)]
 clusterSTAT3 <- unique(stat3$clusters[which(stat3$no_points %in% noPoints)])
+#clusterSTAT3 <- c(9)
 stat3 <- left_join(stat3,data.frame(no_points=uniqueClusterPopulations,p_vals,p.adj))
 saveRDS(stat3,'../results/stat3_latent_clusters_withpvals.rds')
 
@@ -533,6 +577,8 @@ latentgenes <- latentgenes[-which(latentgenes=='STAT3')]
 latentgenes <- data.frame(genes=latentgenes)
 geneInfo <- read.delim('../data/geneinfo_beta.txt')
 latentgenes <- left_join(latentgenes,geneInfo,by=c("genes"="gene_symbol"))
+df_gene_canditates <- readRDS('../results/gene_candidates.rds')
+latentgenes <- latentgenes %>% filter(genes %in% df_gene_canditates$gene_symbol)
 saveRDS(latentgenes,'../results/latentgenes.rds')
 
 ### Get consensus gene----
@@ -541,3 +587,34 @@ GSEAgenes <- readRDS('../results/GSEAgenes.rds')
 
 consensus <- left_join(latentgenes,GSEAgenes)
 consensus <- consensus %>% filter(!is.na(gene_id))
+
+### For each GSEA candidate find out how many of the genes belonging ----
+# in the path from source to STAT3 are in latent space important genes.
+
+latentgenes <- readRDS('../results/latentgenes.rds')
+GSEAgenes <- readRDS('../results/GSEAgenes.rds')
+
+#Load interactions network and paths from source to STAT3
+interactions <- read.delim('../preprocessing/preprocessed_data/prior_knowledge_trimmed_net.txt',sep = ' ')
+paths <- read.csv('../results/pathsToSTAT3.csv') %>% column_to_rownames('X')
+paths <- paths %>% mutate(pathGenes = str_replace_all(paths, "\\*|\\[|\\]", ""))
+paths <- paths %>% mutate(pathGenes = strsplit(pathGenes,",")) %>% unnest(pathGenes)
+paths <- paths %>% mutate(pathGenes = gsub("\"", "", pathGenes))
+paths <- paths %>% mutate(pathGenes = gsub("\'", "", pathGenes))
+paths <- paths %>% mutate(pathGenes=str_replace_all(pathGenes,' ',''))
+paths <- paths %>% unique()
+
+# First get an interaction subnetwork with all the relevent genes
+nodes <- unique(c(latentgenes$genes,GSEAgenes$genes,paths$pathGenes))
+interactions <- interactions %>% filter((source %in% nodes) & (target %in% nodes))
+nodeAttr <- data.frame(node=unique(c(interactions$source,interactions$target)))
+nodeAttr <-  nodeAttr %>% mutate(feature=ifelse(node %in% latentgenes$genes,'latent',
+                                              ifelse(node %in% GSEAgenes$genes,'GSEA','other')))
+write_delim(interactions,'../results/releventInteractions.txt',delim = '\t')
+write_delim(nodeAttr,'../results/releventNodeAttr.txt',delim = '\t')
+
+# Find now latents in the gene paths to prioritize some candidates from GSEA
+paths <- paths %>% filter(pathGenes!='STAT3')
+latentGenesInPaths <- left_join(latentgenes,paths,by=c('genes'='pathGenes'))
+latentGenesInPaths <- latentGenesInPaths %>% filter(!is.na(paths))
+xlsx::write.xlsx(latentGenesInPaths,'../results/latentGenesInPaths.xlsx')
