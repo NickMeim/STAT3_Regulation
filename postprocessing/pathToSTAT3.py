@@ -24,7 +24,7 @@ while ((mode!='F') and (mode!='S')):
 		print('Wrong input value,enter again')
 
 # Import omnipath preprocessed
-df_net = pd.read_csv('preprocessed_data/FilteredOmnipath.tsv', sep='\t',index_col=0)
+df_net = pd.read_csv('../preprocessing/preprocessed_data/FilteredOmnipath.tsv', sep='\t',index_col=0)
 net = nx.from_pandas_edgelist(df_net,
                               source = 'source',
                               target = 'target',
