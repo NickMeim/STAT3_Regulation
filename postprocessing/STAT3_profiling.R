@@ -595,17 +595,20 @@ latentgenes <- readRDS('../results/latentgenes.rds')
 GSEAgenes <- readRDS('../results/GSEAgenes.rds')
 
 #Load interactions network and paths from source to STAT3
-interactions <- read.delim('../preprocessing/preprocessed_data/prior_knowledge_trimmed_net.txt',sep = ' ')
+interactions <- read.delim('../preprocessing/preprocessed_data/FilteredOmnipath.tsv') %>% column_to_rownames('X')
 paths <- read.csv('../results/pathsToSTAT3.csv') %>% column_to_rownames('X')
+paths <- paths %>% filter(paths!='[]')
 paths <- paths %>% mutate(pathGenes = str_replace_all(paths, "\\*|\\[|\\]", ""))
 paths <- paths %>% mutate(pathGenes = strsplit(pathGenes,",")) %>% unnest(pathGenes)
 paths <- paths %>% mutate(pathGenes = gsub("\"", "", pathGenes))
 paths <- paths %>% mutate(pathGenes = gsub("\'", "", pathGenes))
 paths <- paths %>% mutate(pathGenes=str_replace_all(pathGenes,' ',''))
+paths <- paths %>% filter(pathGenes!='')
+paths <- paths %>% filter(pathGenes!=' ')
 paths <- paths %>% unique()
 
 # First get an interaction subnetwork with all the relevent genes
-nodes <- unique(c(latentgenes$genes,GSEAgenes$genes,paths$pathGenes))
+nodes <- unique(c(paths$source,paths$pathGenes))
 interactions <- interactions %>% filter((source %in% nodes) & (target %in% nodes))
 nodeAttr <- data.frame(node=unique(c(interactions$source,interactions$target)))
 nodeAttr <-  nodeAttr %>% mutate(feature=ifelse(node %in% latentgenes$genes,'latent',
