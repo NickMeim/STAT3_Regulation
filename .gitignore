@@ -25,6 +25,7 @@ results/clustering250_res.rds
 results/clustering500_res.rds
 results/df_kelbow.rds
 results/df_kelbow_2.rds
+results/df_kelbow_new.rds
 results/GSEAgenes.xlsx
 results/latentgenes.xlsx
 figures/.Rhistory
