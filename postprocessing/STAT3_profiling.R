@@ -242,7 +242,8 @@ keegEnrichResults <-  fastenrichment(sigInfo$sig_id,
                                      geneInfo$gene_id,
                                      cmap,
                                      enrichment_space = 'kegg',
-                                     n_permutations=5000)
+                                     n_permutations=5000,
+                                     pval_adjustment=F)
 keggNES <- keegEnrichResults$NES$`NES KEGG`
 keggpadj <- keegEnrichResults$Pval$`Pval KEGG`
 
@@ -267,7 +268,7 @@ df_kegg <- gather(as.data.frame(keggNES_signigicants) %>% rownames_to_column('Pa
                   'Samples','NES',-Pathways)
 png(file="../figures/keggHeatmap.png",width=16,height=8,units = "in",res=600)
 ggplot(df_kegg, aes(Samples,Pathways, fill= NES)) + 
-  geom_tile()+theme(axis.text.x=element_blank(),text = element_text(size=13))+
+  geom_tile()+theme(axis.text.x=element_blank(),text = element_text(size=20))+
   theme(plot.title = element_text(hjust = 0.5))+
   scale_fill_gradient2()+ ggtitle("STAT3 regulated pathways")
 
@@ -276,12 +277,12 @@ dev.off()
 keggNES_signigicants_mean <- as.matrix(apply(keggNES_signigicants,1,mean))
 
 df_kegg_mean <- as.data.frame(keggNES_signigicants_mean) %>% rownames_to_column('Pathways')
-png(file="../figures/MeankeggBarplot.png",width=8,height=8,units = "in",res=600)
-ggplot(df_kegg_mean, aes(V1,Pathways, fill= V1)) + ylab('')+xlab('')+
+png(file="../figures/MeankeggBarplot.png",width=16,height=8,units = "in",res=600)
+ggplot(df_kegg_mean, aes(V1,Pathways, fill= V1)) + ylab('Pathways')+xlab('NES')+
   guides(fill=guide_legend(title="NES"))+
   geom_bar(stat='identity')+
   theme_classic()+
-  theme(text = element_text(size=13),
+  theme(text = element_text(size=20),
         plot.title = element_text(hjust = 0.5),
         legend.position="none")+
   scale_fill_gradient2()+ ggtitle("Average NES")

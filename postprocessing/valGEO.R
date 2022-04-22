@@ -98,11 +98,20 @@ keegEnrichResults <-  fastenrichment(releventGenes,
                                      rownames(exprs_annotated),
                                      exprs_annotated,
                                      enrichment_space = 'kegg',
-                                     n_permutations=5000)
+                                     n_permutations=10000,
+                                     pval_adjustment=F)
 keggNES <- keegEnrichResults$NES$`NES KEGG`
 keggpadj <- keegEnrichResults$Pval$`Pval KEGG`
 
-# #pca analysis
+
+# GetSignificants <- function(sampleName,ScoresMatrix,pvalMatrix,p.adj.cutoff=0.01,nes_cutoff=2){
+#   pmat <- pvalMatrix[,sampleName]
+#   inds <- which(pmat<p.adj.cutoff)
+#   smat <- ScoresMatrix[inds,sampleName]
+#   inds2 <- which(abs(smat)>nes_cutoff)
+#   smat <- smat[inds2]
+#   return(smat)
+# }
 # library(factoextra)
 # 
 # #Run pca

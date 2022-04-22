@@ -189,18 +189,18 @@ fastenrichment <- function(signature_ids,
   
   NES <- genesets_list[[1]]$NES
   if (pval_adjustment==T){
-    pval <- genesets_list[[1]]$pval
-  }else{
     pval <- genesets_list[[1]]$padj
+  }else{
+    pval <- genesets_list[[1]]$pval
   }
   
   for (i in 2:length(genesets_list)) {
     
     NES <- cbind(NES,genesets_list[[i]]$NES)
     if (pval_adjustment==T){
-      pval <- cbind(pval,genesets_list[[i]]$pval)
+      pval <- cbind(pval,genesets_list[[i]]$padj)
     }else{
-      pval <- cbind(padj,genesets_list[[i]]$padj)
+      pval <- cbind(pval,genesets_list[[i]]$pval)
     }
   }
   
