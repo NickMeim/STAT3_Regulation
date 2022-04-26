@@ -317,7 +317,7 @@ saveRDS(df_gene_canditates,'../results/gene_candidates.rds')
 
 ### Therapeutic screening----
 
-# Screen drugs and shRNAs based on the GSEA distance with the STAT3 knockdown
+# Screen shRNAs based on the GSEA distance with the STAT3 knockdown
 #Load signature info and split data to high quality replicates and low quality replicates
 sigInfo <- read.delim('../data/siginfo_beta.txt')
 

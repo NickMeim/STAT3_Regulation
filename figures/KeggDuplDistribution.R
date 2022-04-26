@@ -43,7 +43,8 @@ dist$value <- dist$value/2
 
 # Plot the distributions and store them forn now in the list using ggplot
 p <- ggplot(dist,aes(x=value)) +
-    geom_density(alpha=0.2,color='blue',fill='blue') +
+    geom_density(alpha=0.2,color='blue',fill='blue') + 
+    geom_vline(xintercept=0.3, linetype="dashed", color = "red")+
     labs(title="KEGG pathways GSEA distance of duplicate shRNAs",x="GSEA Distance", y = "Density")+
     xlim(c(0,1))+#xlim(c(min(df_dist$value),max(df_dist$value)))+
     theme_classic() + theme(text = element_text(size=10),
