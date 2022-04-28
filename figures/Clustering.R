@@ -76,3 +76,24 @@ dev.off()
 
 hist(df_km$std_dunn,breaks=20,main = 'Distribution of standard deviation of dunn index',xlab='Dunn standard deviation')
 hist(df_km$mu_dunn,breaks=20,main = 'Distribution of mean of dunn index',xlab='Dunn mean value')
+
+# Percentage of total STAT3 profiles in clusters
+library(ggplot2)
+library(ggsignif)
+stat3_cluster <- readRDS('../results/stat3_latent_clusters_withpvals.rds')
+stat3_cluster <- stat3_cluster %>% select(clusters,p_vals,proportion,no_points) %>% unique()
+stat3_cluster$clusters <- factor(stat3_cluster$clusters,
+                                 levels =stat3_cluster$clusters[order(stat3_cluster$clusters)])
+
+p <- ggplot(stat3_cluster,aes(x=clusters,y=proportion,fill=p_vals))  + geom_bar(stat="identity") +
+  labs(fill='p.value',title = 'Proportion of total STAT3 profiles in the cluster')+
+  xlab('Cluster id') + ylab('Proportion') +
+  geom_signif(
+    y_position = c(0.18, 0.18,0.18), xmin = c(1, 4,5), xmax = c(1, 4,5),
+    annotation = c("**", "**","**"), tip_length = 0)+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(p)
+
+png('cluster_proportion_barplot.png',width=12,height=8,units = "in",res=300)
+print(p)
+dev.off()

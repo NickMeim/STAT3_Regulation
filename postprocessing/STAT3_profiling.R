@@ -431,7 +431,7 @@ GSEAgenes <- data.frame(genes=GSEAgenes)
 GSEAgenes <- left_join(GSEAgenes,geneInfo,by=c("genes"="gene_symbol"))
 saveRDS(GSEAgenes,'../results/GSEAgenes.rds')
 
-## Find neighbors from autoencoder----
+## Find neighbors from auto-encoder----
 # Load embeddings
 emb <- read.csv('../../shrna_embs1024.csv')
 #emb <- emb %>% mutate(shRNA='other')
@@ -565,7 +565,7 @@ noPoints <- uniqueClusterPopulations[which(p_vals<0.01)]
 clusterSTAT3 <- unique(stat3$clusters[which(stat3$no_points %in% noPoints)])
 #clusterSTAT3 <- c(9)
 stat3 <- left_join(stat3,data.frame(no_points=uniqueClusterPopulations,p_vals,p.adj))
-saveRDS(stat3,'../results/stat3_latent_clusters_withpvals.rds')
+#saveRDS(stat3,'../results/stat3_latent_clusters_withpvals.rds')
 
 # # Keep those that are similar with STAT3 in at least half of the cell-lines
 # dist_filtered <- dist_filtered %>% filter(proportion>=0.5)

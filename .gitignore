@@ -8,6 +8,7 @@ preprocessing/preprocessed_data/dupl_shRNA_mean_dist_long.rds
 preprocessing/preprocessed_data/prior_knowledge_trimmed_net.txt
 postprocessing/.Rhistory
 postprocessing/.Rproj.user/
+postprocessing/omnipathr-log
 results/cmap_mean_dist_kegg_shrna_statcandidates_tasfiltered.rds
 results/cmap_mean_dist_kegg_shrna_statcandidates.rds
 results/dupl_shRNA_mean_dist_q1replicates_5dupls_long.rds

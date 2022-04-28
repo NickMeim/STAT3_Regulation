@@ -50,7 +50,7 @@ gc()
 library(factoextra)
 
 #Run pca
-pca.samples <- prcomp(as.matrix(emb[,2:(ncol(emb)-1)]),scale=F)
+pca.samples <- prcomp(as.matrix(emb[,2:(ncol(emb)-1)]),scale=T)
 
 #Visualize explained variance from top 20 PCs
 png('explained_variance_pcs_latent.png',width=9,height=6,units = "in",res=300)
@@ -58,15 +58,55 @@ fviz_eig(pca.samples,ncp=50)
 dev.off()
 
 #Built data frame with PCs, labels etc
-df_pca <- pca.samples$x[,1:2]
+df_pca <- pca.samples$x[,1:3]
 df_pca <- data.frame(df_pca)
 df_pca$shRNA <- factor(emb$shRNA,levels = c('other','STAT3'))
 
+library("gg3D")
+
 #PCA plot
-pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2))+ 
-  ggtitle('Principal Component Analysis of latent space vectors')
-pca_plot <- pca_plot+geom_point(aes(col =factor(shRNA),size=factor(shRNA)),alpha=0.5) +
-  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + 
+pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =shRNA))+ 
+  ggtitle('Principal Component Analysis of latent space vectors') +
+  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25"))+
+  theme_void() +
+  labs_3D(labs=c("PC1", "PC2", "PC3"),
+          angle=c(0,0,0),
+          hjust=c(0,2,2), 
+          vjust=c(2,2,-1))+
+  axes_3D() +
+  stat_3D()+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(pca_plot)
+# pca_plot <- pca_plot+geom_point(aes(col =factor(shRNA)),alpha=0.2) +
+#   scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + 
+#   geom_point(data = subset(df_pca, shRNA == 'STAT3'),aes(x = PC1, y = PC2,z=PC3, color = factor(shRNA)),size=2)+
+#   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+# print(pca_plot)
+
+df_cluster <- readRDS('../results/clustering200_res.rds')
+df_pca$cluster <- df_cluster$clusters
+releventClusters <- c(25,73,91)
+df_pca <- df_pca %>% mutate(cluster=ifelse(cluster %in% releventClusters,cluster,'other'))
+df_pca$cluster <- factor(df_pca$cluster, levels = c('25','73','91','other'))
+
+pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =cluster))+ 
+  ggtitle('Principal Component Analysis of latent space vectors') +
+  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF"))+
+  theme_void() +
+  labs_3D(labs=c("PC1", "PC2", "PC3"),
+          angle=c(0,0,0),
+          hjust=c(0,2,2), 
+          vjust=c(2,2,-1))+
+  axes_3D() +
+  stat_3D()+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(pca_plot)
+
+pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
+  geom_point(aes(col =cluster),alpha = 0.3)  + labs(title="PCA plot of latent space with STAT3-relevant clusters") +
+  xlab('PC1') + ylab('PC2')+
+  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF")) +
+  geom_point(data = subset(df_pca, cluster != 'other'),aes(x = PC1, y = PC2, color = cluster))+
   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 print(pca_plot)
 
@@ -74,9 +114,9 @@ print(pca_plot)
 library(Rtsne)
 perpl = DescTools::RoundTo(sqrt(nrow(emb)), multiple = 5, FUN = round)
 #Use the above formula to calculate perplexity (perpl). But if perplexity is too large for the number of data you have define manually
-#perpl=2
-init_dim = 20
-iter = 1000
+perpl=80
+init_dim = 10
+iter = 2000
 emb_size = ncol(emb)-2
 tsne_all <- Rtsne(as.matrix(emb[,2:(ncol(emb)-1)]), 
                   dims = 2, perplexity=perpl, 
@@ -84,11 +124,68 @@ tsne_all <- Rtsne(as.matrix(emb[,2:(ncol(emb)-1)]),
 df_all <- data.frame(V1 = tsne_all$Y[,1], V2 =tsne_all$Y[,2])
 df_all$shRNA <- factor(emb$shRNA,levels = c('other','STAT3'))
 
-gtsne <- ggplot(df_all, aes(V1, V2))+
-  geom_point(aes(col =factor(shRNA),size=factor(shRNA)))  + labs(title="t-SNE plot of latent space") + xlab('Dim 1') + ylab('Dim 2')+
-  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+gtsne <- ggplot(df_all, aes(V1, V2),alpha=0.2)+
+  geom_point(aes(col =factor(shRNA)))  + labs(title="t-SNE plot of latent space") + 
+  xlab('Dim 1') + ylab('Dim 2')+
+  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + 
+  geom_point(data = subset(df_all, shRNA == 'STAT3'),aes(x = V1, y = V2, color = factor(shRNA)))+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 print(gtsne)
 
+df_cluster <- readRDS('../results/clustering200_res.rds')
+df_all$cluster <- df_cluster$clusters
+releventClusters <- c(25,73,91)
+df_all <- df_all %>% mutate(cluster=ifelse(cluster %in% releventClusters,cluster,'other'))
+df_all$cluster <- factor(df_all$cluster, levels = c('25','73','91','other'))
+
+gtsne <- ggplot(df_all, aes(V1, V2),alpha=0.2)+
+  geom_point(aes(col =factor(cluster)),alpha = 0.3)  + labs(title="t-SNE plot of latent space with STAT3-relevant clusters") +
+  xlab('Dim 1') + ylab('Dim 2')+
+  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF")) +
+  geom_point(data = subset(df_all, cluster != 'other'),aes(x = V1, y = V2, color = cluster))+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(gtsne)
+
+### umap ###
+library(umap)
+library(plyr)
+map <- umap(as.matrix(emb[,2:(ncol(emb)-1)]), n_components = 3)
+df_map <- data.frame(V1 = map$layout[,1], V2 = map$layout[,2],V3= map$layout[,3])
+df_map$shRNA <- factor(emb$shRNA,levels = c('STAT3','other'))
+df_map$cluster <- df_cluster$clusters
+releventClusters <- c(25,73,91)
+df_map <- df_map %>% mutate(cluster=ifelse(cluster %in% releventClusters,cluster,'other'))
+df_map$cluster <- factor(df_map$cluster, levels = c('25','73','91','other'))
+
+gg_map <- ggplot(df_map, aes(V1, V2))+
+  geom_point(aes(col =factor(cluster)),alpha=0.2)  + labs(title="UMAP plot of latent space with STAT3-relevant clusters") +
+  xlab('Dim 1') + ylab('Dim 2')+ xlim(c(-6,6)) + ylim(c(-6,6))+
+  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF")) +
+  geom_point(data = subset(df_map, cluster != 'other'),aes(x = V1, y = V2, color = cluster))+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(gg_map)
+
+gg_map <- ggplot(df_map, aes(V1, V2))+
+  geom_point(aes(col =shRNA),alpha=0.2)  + labs(title="UMAP plot of latent space with STAT3-relevant clusters") +
+  xlab('Dim 1') + ylab('Dim 2')+ xlim(c(-6,6)) + ylim(c(-6,6))+
+  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + 
+  geom_point(data = subset(df_map, shRNA == 'STAT3'),aes(x = V1, y = V2, color = shRNA))+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(gg_map)
+
+# UMAP 3D
+gg_map <- ggplot(df_map,aes(x=V1,y=V2,z=V3,col =cluster))+ 
+  ggtitle('UMAP of latent space vectors') +
+  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF"))+
+  theme_void() +
+  labs_3D(labs=c("Dim 1", "Dim 2", "Dim 3"),
+          angle=c(0,0,0),
+          hjust=c(0,2,2), 
+          vjust=c(2,2,-1))+
+  axes_3D() +
+  stat_3D()+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(gg_map)
 
 
 # Keep some duplicates to be computationally feasible
