@@ -89,7 +89,7 @@ p <- ggplot(stat3_cluster,aes(x=clusters,y=proportion,fill=p_vals))  + geom_bar(
   labs(fill='p.value',title = 'Proportion of total STAT3 profiles in the cluster')+
   xlab('Cluster id') + ylab('Proportion') +
   geom_signif(
-    y_position = c(0.18, 0.18,0.18), xmin = c(1, 4,5), xmax = c(1, 4,5),
+    y_position = c(0.18, 0.12,0.12), xmin = c(1, 4,5), xmax = c(1, 4,5),
     annotation = c("**", "**","**"), tip_length = 0)+
   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 print(p)
