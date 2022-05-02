@@ -62,26 +62,34 @@ df_pca <- pca.samples$x[,1:3]
 df_pca <- data.frame(df_pca)
 df_pca$shRNA <- factor(emb$shRNA,levels = c('other','STAT3'))
 
-library("gg3D")
-
-#PCA plot
-pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =shRNA))+ 
-  ggtitle('Principal Component Analysis of latent space vectors') +
-  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25"))+
-  theme_void() +
-  labs_3D(labs=c("PC1", "PC2", "PC3"),
-          angle=c(0,0,0),
-          hjust=c(0,2,2), 
-          vjust=c(2,2,-1))+
-  axes_3D() +
-  stat_3D()+
-  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
-print(pca_plot)
-# pca_plot <- pca_plot+geom_point(aes(col =factor(shRNA)),alpha=0.2) +
-#   scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + 
-#   geom_point(data = subset(df_pca, shRNA == 'STAT3'),aes(x = PC1, y = PC2,z=PC3, color = factor(shRNA)),size=2)+
+# library("gg3D")
+# 
+# #PCA plot
+# pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =shRNA))+ 
+#   ggtitle('Principal Component Analysis of latent space vectors') +
+#   scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25"))+
+#   theme_void() +
+#   labs_3D(labs=c("PC1", "PC2", "PC3"),
+#           angle=c(0,0,0),
+#           hjust=c(0,2,2), 
+#           vjust=c(2,2,-1))+
+#   axes_3D() +
+#   stat_3D()+
 #   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 # print(pca_plot)
+# png('pca_3d_stat3.png',width=12,height=8,units = "in",res=300)
+# print(pca_plot)
+# dev.off()
+pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
+  geom_point(aes(col =shRNA),alpha = 0.3)  + labs(title="PCA plot of latent space with STAT3 data-points") +
+  xlab('PC1') + ylab('PC2')+
+  scale_color_manual(values =c("other"="#BFBFBF","STAT3"="#E46D25")) +
+  geom_point(data = subset(df_pca, shRNA != 'other'),aes(x = PC1, y = PC2, color = shRNA))+
+  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+print(pca_plot)
+png('pca_2d_stat3.png',width=12,height=8,units = "in",res=300)
+print(pca_plot)
+dev.off()
 
 df_cluster <- readRDS('../results/clustering200_res.rds')
 df_pca$cluster <- df_cluster$clusters
@@ -89,18 +97,41 @@ releventClusters <- c(25,73,91)
 df_pca <- df_pca %>% mutate(cluster=ifelse(cluster %in% releventClusters,cluster,'other'))
 df_pca$cluster <- factor(df_pca$cluster, levels = c('25','73','91','other'))
 
-pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =cluster))+ 
-  ggtitle('Principal Component Analysis of latent space vectors') +
-  scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF"))+
-  theme_void() +
-  labs_3D(labs=c("PC1", "PC2", "PC3"),
-          angle=c(0,0,0),
-          hjust=c(0,2,2), 
-          vjust=c(2,2,-1))+
-  axes_3D() +
-  stat_3D()+
-  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
-print(pca_plot)
+
+# pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2,z=PC3,col =cluster))+ 
+#   ggtitle('Principal Component Analysis of latent space vectors') +
+#   scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF"))+
+#   theme_void() +
+#   labs_3D(labs=c("PC1", "PC2", "PC3"),
+#           angle=c(0,0,0),
+#           hjust=c(0,2,2), 
+#           vjust=c(2,2,-1))+
+#   axes_3D() +
+#   stat_3D()+
+#   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+# 
+# library(plotly)
+# 
+# fig <- plot_ly(df_pca, x = ~PC1, y = ~PC2, z = ~PC3,size=1,color=~shRNA,
+#                colors = c("other"="#BFBFBF","STAT3"="#E46D25"),
+#                mode   = 'markers',
+#                type='scatter3d')
+# fig %>% layout(title = "PCA 3D scatter plot of latent embeddings", 
+#                scene = list(camera = list(eye = list(x = -1.3, y = 1.3, z = 1))))
+# 
+# df_pca <- df_pca %>% mutate(opacity=ifelse(cluster=='other',0.01,1))
+# plot_ly(df_pca, x = ~PC1, y = ~PC2, z = ~PC3,size=1,color=~cluster,opacity = ~opacity,
+#         
+#         colors = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF"),
+#         mode   = 'markers',
+#         type='scatter3d')
+# 
+# 
+# 
+# print(pca_plot)
+# png('pca_3d_clusters.png',width=12,height=8,units = "in",res=300)
+# print(pca_plot)
+# dev.off()
 
 pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
   geom_point(aes(col =cluster),alpha = 0.3)  + labs(title="PCA plot of latent space with STAT3-relevant clusters") +
@@ -109,18 +140,25 @@ pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
   geom_point(data = subset(df_pca, cluster != 'other'),aes(x = PC1, y = PC2, color = cluster))+
   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 print(pca_plot)
-
+png('pca_2d_clusters.png',width=12,height=8,units = "in",res=300)
+print(pca_plot)
+dev.off()
 ### tsne ####
 library(Rtsne)
-perpl = DescTools::RoundTo(sqrt(nrow(emb)), multiple = 5, FUN = round)
-#Use the above formula to calculate perplexity (perpl). But if perplexity is too large for the number of data you have define manually
-perpl=80
+#perpl = DescTools::RoundTo(sqrt(nrow(emb)), multiple = 5, FUN = round)
+perpl= 250
 init_dim = 10
 iter = 2000
 emb_size = ncol(emb)-2
+set.seed(42)
 tsne_all <- Rtsne(as.matrix(emb[,2:(ncol(emb)-1)]), 
                   dims = 2, perplexity=perpl, 
-                  verbose=TRUE, max_iter = iter,initial_dims = init_dim,check_duplicates = F)
+                  verbose=TRUE, 
+                  max_iter = iter,
+                  initial_dims = init_dim,
+                  check_duplicates = F,
+                  normalize = F,pca_scale = T,
+                  num_threads = 15)
 df_all <- data.frame(V1 = tsne_all$Y[,1], V2 =tsne_all$Y[,2])
 df_all$shRNA <- factor(emb$shRNA,levels = c('other','STAT3'))
 
@@ -186,20 +224,3 @@ gg_map <- ggplot(df_map,aes(x=V1,y=V2,z=V3,col =cluster))+
   stat_3D()+
   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
 print(gg_map)
-
-
-# Keep some duplicates to be computationally feasible
-duplicateSigs <- sigInfo %>% filter(dupl_counts>=5)
-duplicatesIndentity <- unique(duplicateSigs$duplIdentifier)
-
-emb_dupls <- emb %>% filter(X %in% duplicateSigs$sig_id)
-emb_dupl_stat3 <- emb %>% filter(X %in% stat3$sig_id)
-emb_dupls <- emb_dupls %>% filter(!(X %in% stat3$sig_id))
-
-ind <- which((emb$X %in% duplicateSigs$sig_id) | (emb$X %in% stat3$sig_id))
-df <- df_all[ind,]
-
-gtsne <- ggplot(df, aes(V1, V2))+
-  geom_point(aes(col =factor(shRNA),size=factor(shRNA)))  + labs(title="t-SNE plot of latent space") + xlab('Dim 1') + ylab('Dim 2')+
-  scale_color_manual(values = c("other"="#BFBFBF","STAT3"="#E46D25")) + theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
-print(gtsne)

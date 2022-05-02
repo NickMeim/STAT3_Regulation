@@ -18,6 +18,7 @@ results/stat3_shrna_tf_activities.tsv
 results/stat3_networks
 results/keggpadj_shRNAs.rds
 results/keggNES_shRNAs.rds
+results/kegg_mean_dist_shrna_with_drugs.rds
 results/sim_cosine_latent_5dupls.rds
 results/dist_latent_5dupls.rds
 results/latent_shrna_all_with_stat3_cosine_long_format.rds
@@ -35,5 +36,6 @@ data/geneinfo_beta.txt
 data/level5_beta_trt_cp_n720216x12328.gctx
 data/siginfo_beta.txt
 data/dorothea.tsv
+learning/.ipynb_checkpoints
 inputFile_paths
 .Rproj.user
