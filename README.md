@@ -4,7 +4,7 @@ This study aims to computationally identify therapeutic desings to indirectly re
 The current repository contains code for:
 1. Initial evaluation of the quality and preprocessing of the data.
 2. Comparison of the transcriptomic signatures via the GSEA score distance function[^1][^2] as adopted by this [repository](https://github.com/BioSysLab/deepSIBA) which is part of the deepSIBA publication[^3].
-3. Machine learning algorithms to manipulate transcriptomic profiles and make disease-relevent predictions (still under development).
+3. Deep learning model to compare transcriptomic profiles on the gene level.
 
 ## Data
 The transcriptomic signatures (level 5 profiles) of the L1000 CMap resource[^4] are used for this study, together with data from the KEGG database[^5] (accessed via the Bioconductor resource[^6]).
