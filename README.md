@@ -1,4 +1,6 @@
 ## Overview
+![releventInteractionsOrganic](https://user-images.githubusercontent.com/48244638/166481974-04ce4df3-a8dc-4c9a-b025-4802e0a83652.png)
+
 This study aims to computationally identify therapeutic desings to indirectly regulate STAT3 activity, a master regulator of many oncogenic signaling pathways.
 
 The current repository contains code for:
