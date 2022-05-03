@@ -36,6 +36,7 @@ data/geneinfo_beta.txt
 data/level5_beta_trt_cp_n720216x12328.gctx
 data/siginfo_beta.txt
 data/dorothea.tsv
+data/compoundinfo_beta.txt
 learning/.ipynb_checkpoints
 inputFile_paths
 .Rproj.user

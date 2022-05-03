@@ -40,6 +40,7 @@ sigInfo <- sigInfo %>%
 shRNA <- sigInfo %>% filter(pert_type=='trt_sh')
 shRNA <- shRNA %>% filter(quality_replicates==1)
 shRNA <-  shRNA %>% filter(cmap_name=='STAT3' | tas>=0.3)
+
 # Keep only relevant candidates
 nodeAttr <- read.delim('../results/releventNodeAttr.txt')
 knockdowns <- unique(nodeAttr$node)
@@ -121,7 +122,7 @@ saveRDS(keggpval,'../results/keggpval_combined_drugs_shrna.rds')
 
 # Calculate distance of candidates from STAT3
 keggNES <- readRDS('../results/keggNES_combined_drugs_shrna.rds')
-keggNES <-  keggNES[,as.character(sigInfo$sig_id)]
+keggNES <-  keggNES[,as.character(sigInfo_combined$sig_id)]
 
 # Calculate gsea distances 
 library(doRNG)
@@ -139,10 +140,10 @@ mean_dist <- apply(distance, c(1,2), mean, na.rm = TRUE)
 colnames(mean_dist) <- colnames(keggNES)
 rownames(mean_dist) <- colnames(keggNES)
 print('Begin saving GSEA distance...')
-#saveRDS(mean_dist,'../results/cmap_mean_dist_kegg_shrna_statcandidates_tasfiltered.rds')
+#saveRDS(mean_dist,'../results/kegg_mean_dist_shrna_with_drugs.rds')
 
 # Keep good candidates
-mean_dist <- readRDS('../results/cmap_mean_dist_kegg_shrna_statcandidates_tasfiltered.rds')
+mean_dist <- readRDS('../results/kegg_mean_dist_shrna_with_drugs.rds')
 gc()
 
 ### Convert matrix into data frame
@@ -152,8 +153,8 @@ dist <- reshape2::melt(mean_dist)
 dist <- dist %>% filter(value != -100)
 
 # Merge meta-data info and distances values
-dist <- left_join(dist,sigInfo %>% dplyr::select(sig_id,cmap_name,cell_iname,duplIdentifier),by = c("Var1"="sig_id"))
-dist <- left_join(dist,sigInfo %>% dplyr::select(sig_id,cmap_name,cell_iname,duplIdentifier),by = c("Var2"="sig_id"))
+dist <- left_join(dist,sigInfo_combined %>% dplyr::select(sig_id,cmap_name,cell_iname,pert_type,duplIdentifier),by = c("Var1"="sig_id"))
+dist <- left_join(dist,sigInfo_combined %>% dplyr::select(sig_id,cmap_name,cell_iname,pert_type,duplIdentifier),by = c("Var2"="sig_id"))
 dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
 dist$value <- dist$value/2
 
@@ -161,7 +162,9 @@ dist$value <- dist$value/2
 dist <- dist %>% filter(cmap_name.x=='STAT3' | cmap_name.y=='STAT3')
 dist <- dist %>% filter(!(cmap_name.x=='STAT3' & cmap_name.y=='STAT3'))
 dist <- dist %>% filter(cell_iname.x==cell_iname.y)
+dist <- dist %>% filter(pert_type.x!=pert_type.y) #make sure I compare shRNA with drugs
 dist <- dist %>% mutate(cell_iname = cell_iname.x) %>% dplyr::select(-cell_iname.x,-cell_iname.y) %>% unique()
+gc()
 
 # First aggregate duplicates
 dist <- dist %>% mutate(pairID=ifelse(cmap_name.x!='STAT3',duplIdentifier.x,duplIdentifier.y)) %>%
@@ -174,25 +177,96 @@ dist <- dist %>% dplyr::select(-med_value,-Var1,-Var2,-duplIdentifier.x,-duplIde
 cells <- unique(dist$cell_iname)
 
 #dist <- dist %>% mutate(similar=ifelse(value<=0.3,1,0))
-dist_filtered <- dist %>% filter(value<=0.3) # found from duplicates distribution
+dist_filtered <- dist %>% filter(value<=0.25) # found from duplicates distribution (for durgs mean~0.25)
 
 # Get counts of how many times each candidate was found as a neighbor
-genes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
-genes <- genes[-which(genes=='STAT3')]
+drugs <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+drugs <- drugs[-which(drugs=='STAT3')]
 
 dist_filtered <- dist_filtered %>% mutate(proportion=0)
-for (i in 1:length(genes)){
-  inds <- which(dist_filtered$cmap_name.x==genes[i] | dist_filtered$cmap_name.y==genes[i])
-  df <- dist %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
-  df_filtered <- dist_filtered %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+for (i in 1:length(drugs)){
+  inds <- which(dist_filtered$cmap_name.x==drugs[i] | dist_filtered$cmap_name.y==drugs[i])
+  df <- dist %>% filter(cmap_name.x==drugs[i] | cmap_name.y==drugs[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+  df_filtered <- dist_filtered %>% filter(cmap_name.x==drugs[i] | cmap_name.y==drugs[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
   proportion <- length(unique(df_filtered$cell_iname))/length(unique(df$cell_iname))
   dist_filtered$proportion[inds] <- proportion
 }
 
 # Keep those that are similar with STAT3 in at least half of the cell-lines
 dist_filtered <- dist_filtered %>% filter(proportion>=0.5)
-GSEAgenes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
-GSEAgenes <- GSEAgenes[-which(GSEAgenes=='STAT3')]
-GSEAgenes <- data.frame(genes=GSEAgenes)
-GSEAgenes <- left_join(GSEAgenes,geneInfo,by=c("genes"="gene_symbol"))
-saveRDS(GSEAgenes,'../results/GSEAgenes.rds')
+GSEAdrugs <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+GSEAdrugs <- GSEAdrugs[-which(GSEAdrugs=='STAT3')]
+GSEAdrugs <- data.frame(drugs=GSEAdrugs)
+# Read drug info
+compoundInfo <- read.delim('../data/compoundinfo_beta.txt')
+GSEAdrugs <- left_join(GSEAdrugs,compoundInfo,by=c("drugs"="cmap_name"))
+saveRDS(GSEAdrugs,'../results/GSEAdrugs.rds')
+
+# Repeat for candidate genes----
+dist <- reshape2::melt(mean_dist)
+dist <- dist %>% filter(value != -100)
+
+# Merge meta-data info and distances values
+dist <- left_join(dist,sigInfo_combined %>% dplyr::select(sig_id,cmap_name,cell_iname,pert_type,duplIdentifier),by = c("Var1"="sig_id"))
+dist <- left_join(dist,sigInfo_combined %>% dplyr::select(sig_id,cmap_name,cell_iname,pert_type,duplIdentifier),by = c("Var2"="sig_id"))
+dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
+dist$value <- dist$value/2
+
+# Keep only candidate genes - drugs pairs
+candidates <- readRDS('../results/GSEAgenes.rds')
+candidates <- unique(candidates$genes)
+dist <- dist %>% filter(cmap_name.x %in% candidates | cmap_name.y %in% candidates)
+dist <- dist %>% filter(!(cmap_name.x %in% candidates & cmap_name.y %in% candidates))
+dist <- dist %>% filter(cell_iname.x==cell_iname.y)
+dist <- dist %>% filter(pert_type.x!=pert_type.y) #make sure I compare shRNA with drugs
+dist <- dist %>% mutate(cell_iname = cell_iname.x) %>% dplyr::select(-cell_iname.x,-cell_iname.y) %>% unique()
+gc()
+
+# First aggregate duplicates
+dist <- dist %>% mutate(pairID=ifelse(!(cmap_name.x %in% candidates),duplIdentifier.x,duplIdentifier.y)) %>%
+  group_by(pairID) %>% mutate(med_value=median(value)) %>% ungroup()
+dist$value <- dist$med_value
+dist <- dist %>% dplyr::select(-med_value,-Var1,-Var2,-duplIdentifier.x,-duplIdentifier.y) %>% unique()
+#df <- dist %>% group_by(pairID) %>% summarise(n())
+
+# Get neighbors per cell
+cells <- unique(dist$cell_iname)
+
+#dist <- dist %>% mutate(similar=ifelse(value<=0.3,1,0))
+dist_filtered <- dist %>% filter(value<=0.2) # found from duplicates distribution (for durgs mean~0.25)
+
+# Get counts of how many times each candidate was found as a neighbor
+drugs <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+drugs <- drugs[-which(drugs %in% candidates)]
+
+GSEAdrugs_for_candidates <- data.frame()
+for (j in 1:length(candidates)){
+  dist_filtered_tmp <- dist_filtered %>% filter(cmap_name.x==candidates[j] | cmap_name.y==candidates[j])
+  dist_filtered_tmp <- dist_filtered_tmp %>% mutate(proportion=0)
+  for (i in 1:length(drugs)){
+    inds <- which(dist_filtered_tmp$cmap_name.x==drugs[i] | dist_filtered_tmp$cmap_name.y==drugs[i])
+    df <- dist %>% filter(cmap_name.x==drugs[i] | cmap_name.y==drugs[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+    df_filtered <- dist_filtered_tmp %>% filter(cmap_name.x==drugs[i] | cmap_name.y==drugs[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+    proportion <- length(unique(df_filtered$cell_iname))/length(unique(df$cell_iname))
+    dist_filtered_tmp$proportion[inds] <- proportion
+  }
+  
+  # Keep those that are similar with STAT3 in at least half of the cell-lines
+  dist_filtered_tmp <- dist_filtered_tmp %>% filter(proportion>=0.5)
+  GSEAdrugs <- unique(c(dist_filtered_tmp$cmap_name.x,dist_filtered_tmp$cmap_name.y))
+  GSEAdrugs <- GSEAdrugs[-which(GSEAdrugs %in% candidates)]
+  GSEAdrugs <- data.frame(drugs=GSEAdrugs)
+  GSEAdrugs <- GSEAdrugs %>% mutate(similar_to=candidates[j])
+  if (nrow(GSEAdrugs_for_candidates)==0){
+    GSEAdrugs_for_candidates <- GSEAdrugs
+  }else{
+    GSEAdrugs_for_candidates <- rbind(GSEAdrugs_for_candidates,GSEAdrugs)
+  }
+}
+
+GSEAdrugs_for_candidates <- GSEAdrugs_for_candidates %>% unique()
+
+# Read drug info
+compoundInfo <- read.delim('../data/compoundinfo_beta.txt')
+GSEAdrugs_for_candidates <- left_join(GSEAdrugs_for_candidates,compoundInfo,by=c("drugs"="cmap_name"))
+saveRDS(GSEAdrugs_for_candidates,'../results/GSEAdrugs_for_candidates.rds')
