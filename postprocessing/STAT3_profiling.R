@@ -458,62 +458,6 @@ stat3Info <- sigInfo %>% filter(cmap_name=='STAT3')
 emb <- emb[which(rownames(emb) %in% sigInfo$sig_id),] 
 #emb <- emb[sigInfo$sig_id,]
 
-# # Euclidean distances or cosine similarities in latent space
-# #distance <- as.matrix(dist(emb, method = "euclidean",diag = F,upper = F))
-# library(lsa)
-# X <- t(emb)
-# distance <- cosine(X)
-# colnames(distance) <- rownames(emb)
-# rownames(distance) <- rownames(emb)
-# 
-# ### Convert matrix into data frame
-# # Keep only unique (non-self) pairs
-# distance[lower.tri(distance,diag = T)] <- -100
-# dist <- reshape2::melt(distance)
-# dist <- dist %>% filter(value != -100)
-# 
-# sigInfo <- sigInfo %>% select(sig_id,cmap_name,cell_iname,pert_idose,pert_itime,duplIdentifier) %>% unique()
-# 
-# # Merge meta-data info and distances values
-# dist <- left_join(dist,sigInfo,by = c("Var1"="sig_id"))
-# dist <- left_join(dist,sigInfo,by = c("Var2"="sig_id"))
-# dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
-# dist <- dist %>% filter(!is.na(value))
-# #saveRDS(dist,'../results/sim_cosine_latent_5dupls.rds')
-# gc()
-# 
-# # Keep only STAT3 with other candidate pairs
-# dist <- dist %>% filter(cmap_name.x=='STAT3' | cmap_name.y=='STAT3')
-# dist <- dist %>% filter(!(cmap_name.x=='STAT3' & cmap_name.y=='STAT3'))
-# dist <- dist %>% filter(cell_iname.x==cell_iname.y)
-# dist <- dist %>% mutate(cell_iname = cell_iname.x) %>% dplyr::select(-cell_iname.x,-cell_iname.y) %>% unique()
-# 
-# # # First aggregate duplicates
-# # dist <- dist %>% mutate(pairID=ifelse(cmap_name.x!='STAT3',duplIdentifier.x,duplIdentifier.y)) %>%
-# #   group_by(pairID) %>% mutate(med_value=median(value)) %>% ungroup()
-# # dist$value <- dist$med_value
-# # dist <- dist %>% dplyr::select(-med_value,-Var1,-Var2,-duplIdentifier.x,-duplIdentifier.y) %>% unique()
-# #df <- dist %>% group_by(pairID) %>% summarise(n())
-# 
-# # Get neighbors per cell
-# cells <- unique(as.character(dist$cell_iname))
-# 
-# # Filter dist
-# dist_filtered <- dist %>% filter(value>=0.3) #from duplicates distr and because it is cosine
-# 
-# # Get counts of how many times each candidate was found as a neighbor
-# genes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
-# genes <- genes[-which(genes=='STAT3')]
-# 
-# dist_filtered <- dist_filtered %>% mutate(proportion=0)
-# for (i in 1:length(genes)){
-#   inds <- which(dist_filtered$cmap_name.x==genes[i] | dist_filtered$cmap_name.y==genes[i])
-#   df <- dist %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
-#   df_filtered <- dist_filtered %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
-#   proportion <- length(unique(df_filtered$cell_iname))/length(unique(df$cell_iname))
-#   dist_filtered$proportion[inds] <- proportion
-# }
-
 ### After clustering anlysis get 250 clusters
 km <- kmeans(emb,200,iter.max = 30)
 print(all(sigInfo$sig_id==rownames(emb)))
