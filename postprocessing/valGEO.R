@@ -41,7 +41,7 @@ GSEAGenesInPaths <- GSEAGenesInPaths %>% select(-source,-paths) %>% unique()
 library(limma)
 library(GEOquery)
 Sys.setenv("VROOM_CONNECTION_SIZE" = 43968200  * 2)
-geo <-  getGEO(GEO = 'GSE27869', AnnotGPL = TRUE)
+geo <-  getGEO(GEO = 'GSE186341')
 raw <- geo[[1]]
 
 accession <- raw@phenoData@data$geo_accession %>% as.character()
@@ -102,3 +102,50 @@ keegEnrichResults <-  fastenrichment(releventGenes,
                                      pval_adjustment=F)
 keggNES <- keegEnrichResults$NES$`NES KEGG`
 keggpadj <- keegEnrichResults$Pval$`Pval KEGG`
+
+
+# GetSignificants <- function(sampleName,ScoresMatrix,pvalMatrix,p.adj.cutoff=0.01,nes_cutoff=2){
+#   pmat <- pvalMatrix[,sampleName]
+#   inds <- which(pmat<p.adj.cutoff)
+#   smat <- ScoresMatrix[inds,sampleName]
+#   inds2 <- which(abs(smat)>nes_cutoff)
+#   smat <- smat[inds2]
+#   return(smat)
+# }
+# library(factoextra)
+# 
+# #Run pca
+# pca.samples <- prcomp(t(keggNES),scale=F)
+# 
+# #Visualize explained variance from top 20 PCs
+# png('../figures/scree_geo_validation.png',width=9,height=6,units = "in",res=300)
+# fviz_eig(pca.samples,ncp=50)
+# dev.off()
+# 
+# #Built data frame with PCs, labels etc
+# df_pca <- pca.samples$x[,1:2]
+# df_pca <- data.frame(df_pca)
+# df_pca$shRNA <- factor(colnames(keggNES),levels = colnames(keggNES))
+# df_pca <- df_pca %>% mutate(space=ifelse(shRNA %in% GSEAgenes$genes,'Kegg GSEA candidate',
+#                                          ifelse(shRNA %in% latentgenes$genes,'latent space candidate',
+#                                                 'Included in subnetwork')))
+# df_pca$space[which(df_pca$shRNA=='STAT3')] <- 'STAT3'
+# df_pca$space <- factor(df_pca$space,levels = c('Kegg GSEA candidate',
+#                                             'latent space candidate',
+#                                             'Included in subnetwork',
+#                                             'STAT3'))
+# 
+# #PCA plot
+# pca_plot <- ggplot(df_pca,aes(x=PC1,y=PC2))+ 
+#   ggtitle('PCA in KEGG space for GEO validation')
+# pca_plot <- pca_plot+geom_point(aes(col =factor(space)),size=3) +
+#   scale_color_manual(values = c("Kegg GSEA candidate"="#1ca31c",
+#                                 "latent space candidate"="#ff9900",
+#                                 "Included in subnetwork"="#BFBFBF",
+#                                 'STAT3'='#ff9999')) + 
+#   labs(col='')+
+#   theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+# print(pca_plot)
+#df_kegg <- gather(as.data.frame(keggNES) %>% rownames_to_column('Pathways'),
+#                  'Samples','NES',-Pathways)
+  

@@ -90,8 +90,30 @@ dev.off()
 df_annotation = data.frame(gene_id=rownames(cmap))
 geneInfo$gene_id <- as.character(geneInfo$gene_id)
 df_annotation <- left_join(df_annotation,geneInfo)
-#rownames(cmap) <- df_annotation$gene_symbol
+rownames(cmap) <- df_annotation$gene_symbol
 
+### Infer transcription factors with Dorothea----
+
+minNrOfGenes = 5
+
+# Load requeired packages
+library("dorothea")
+dorotheaData = read.table('../data/dorothea.tsv', sep = "\t", header=TRUE)
+confidenceFilter = is.element(dorotheaData$confidence, c('A', 'B'))
+dorotheaData = dorotheaData[confidenceFilter,]
+
+# Estimate TF activities
+settings = list(verbose = TRUE, minsize = minNrOfGenes)
+TF_activities = run_viper(cmap, dorotheaData, options =  settings)
+
+#TF_activities <- t(TF_activities)
+write.table(TF_activities, file = '../results/stat3_shrna_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+#tf_ranks <- apply(TF_activities,2,rank)
+#tf_median_rank <- as.matrix(apply(tf_ranks,1,median))
+#tf_median_rank[which(rownames(tf_median_rank)=='STAT3')]
+
+### Run CARNIVAL to infer signalling network----
+library(CARNIVAL)
 # First load Omnipath prior knowledge network (PKN)
 library(OmnipathR)
 interactions <- import_omnipath_interactions()
@@ -102,13 +124,120 @@ interactions <- interactions  %>% filter(n_resources>1) %>% dplyr::select(c('sou
 interactions <- interactions %>% filter(!(is_inhibition==0 & is_stimulation==0)) %>% unique()
 interactions <- interactions %>% mutate(interaction=ifelse(is_stimulation!=0,1,-1)) %>%
   dplyr::select(source,interaction,target) %>% unique()
-write.table(interactions, file = '../preprocessing/preprocessed_data/FilteredOmnipath.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+#write.table(interactions, file = '../preprocessing/preprocessed_data/FilteredOmnipath.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+# Get top-bottom tfs
+top_bot_indices <- function(v,num){
+  top <- order(v,decreasing = TRUE)[1:num]
+  bot <-  order(v)[1:num]
+  return(c(top,bot))
+}
+
+
+log_con <- file("log.txt", open="a")
+for (j in 1:ncol(TF_activities)){
+  
+  cat(paste0('Iteration ',j,'/',ncol(TF_activities)), file = log_con, sep="\n")
+  tf_activities <- TF_activities[which(rownames(TF_activities) %in% c(interactions$source,
+                                                                      interactions$target)),]
+  ind <- top_bot_indices(tf_activities[,j],30)
+  tf_activities <- tf_activities[ind,]
+  tf_activities <- tf_activities %>% dplyr::select(colnames(tf_activities)[j])
+  names <- rownames(tf_activities)
+  tf_activities <- tf_activities[,1]
+  names(tf_activities) <- names
+  
+  # Run carnival
+  # YOU MUST FIND WHERE CPLEX IS INSTALLED IN YOUR OWN COMPUTER
+  CplexPath <- 'C:/Program Files/IBM/ILOG/CPLEX_Studio201/cplex/bin/x64_win64/cplex.exe'
+  carnivalOptions <- defaultCplexCarnivalOptions()
+  carnivalOptions$solverPath <- CplexPath
+  carnivalOptions$timelimit <- 1200
+  # Output dir
+  Result_dir <- paste0("../results/stat3_networks/",colnames(TF_activities)[j])
+  dir.create(Result_dir, showWarnings = FALSE)
+  carnivalOptions$outputFolder <- Result_dir
+  
+  inverseCarnivalResults <- runInverseCarnival( measurements = tf_activities, 
+                                                priorKnowledgeNetwork = interactions, 
+                                                carnivalOptions = carnivalOptions)
+  
+  # Save interaction networks
+  nets <- inverseCarnivalResults$sifAll
+  nodes <- inverseCarnivalResults$attributesAll
+  for (i in 1:length(nets)){
+    t <- nets[[i]]
+    t <- as.data.frame(t)
+    t$Node1 <- as.character(t$Node1)
+    t$Node2 <- as.character(t$Node2)
+    t$Sign <- as.character(t$Sign)
+    write_tsv(t,paste0(Result_dir,'/','interactions_1_model',i,'.tsv'))
+    t <- nodes[[i]]
+    t <- as.data.frame(t)
+    t$Nodes <- as.character(t$Nodes)
+    t$Activity <- as.numeric(t$Activity)
+    write_delim(t,paste0(Result_dir,'/','nodesActivity_1_model',i,'.txt'),delim = '\t')
+  }
+  t <- as.data.frame(inverseCarnivalResults$weightedSIF)
+  t$Node1 <- as.character(t$Node1)
+  t$Node2 <- as.character(t$Node2)
+  t$Sign <- as.character(t$Sign)
+  t$Weight <- as.numeric(t$Weight)
+  write_delim(t,paste0(Result_dir,'/','weightedModel_1.txt'),delim = '\t')
+  t <- as.data.frame(inverseCarnivalResults[["nodesAttributes"]])
+  write_delim(t,paste0(Result_dir,'/','nodesAttributes_1.txt'),delim = '\t')
+}
+close(log_con)
+
+
+## Infer a weighted representative network for STAT3
+net_files <- list.files(path='../results/stat3_networks',recursive = T,full.names = T) 
+net_files <- as.data.frame(net_files)
+net_files <- net_files %>%
+  mutate(meas = grepl(pattern = "meas_",x = net_files),
+         log = grepl(pattern = ".log",x = net_files),
+         time = grepl(pattern = "elapsed_time.txt",x = net_files),
+         res = grepl(pattern = "results_CARNIVAL.Rdata",x = net_files),
+         empty = grepl(pattern = "emptyNetwork",x = net_files),
+         lp = grepl(pattern = 'lpFile',x=net_files))
+net_files <-  net_files %>% filter(meas == F & log == F & time == F & res == F & empty == F & lp==F)
+
+match_weight <- c("nodesAttributes_1.txt","weightedModel_1.txt")
+net_files <- net_files %>% dplyr::select(net_files) %>% 
+  mutate(weighted = grepl(pattern = paste(match_weight,collapse = "|"),x = net_files))
+net_files <- net_files %>% filter(weighted == F)
+
+# Check which are edges and which are node attributes
+net_files <- net_files %>% mutate(edgeInfo = grepl(pattern = "interactions",x = net_files),
+                                  nodeInfo = grepl(pattern = "nodesActivity",x = net_files)) %>%
+  dplyr::select(-weighted)
+nodeFiles <- net_files %>% filter(nodeInfo==T)
+edgeFiles <- net_files %>% filter(edgeInfo==T)
+
+nodes <- data.frame()
+edges <- data.frame()
+for (i in 1:nrow(nodeFiles)){
+  nodes <- rbind(nodes,
+                 read.delim(nodeFiles$net_files[i]))
+  edges <- rbind(edges,
+                 read.delim(edgeFiles$net_files[i]))
+  message('Processing image ', i, ' of ', nrow(nodeFiles))
+}
+
+nodes <- aggregate(Activity~Nodes,data=nodes,mean)
+nodes <- nodes %>% mutate(AbsActivity=abs(Activity))
+nodes <- nodes %>% filter(AbsActivity>0.5)
+edges <- aggregate(Sign~Node1+Node2,data=edges,mean)
+edges <- edges %>% mutate(weight=abs(Sign),
+                          Sign=sign(Sign))
+edges <- edges %>% filter(weight>0.5) %>% filter((Node1 %in% nodes$Nodes) & (Node2 %in% nodes$Nodes))
+nodes <- nodes %>% filter(Nodes %in% unique(c(edges$Node1,edges$Node1)))
 
 ### Pathway analysis----
 # load pathway data
 egsea.data(species = "human",returnInfo = TRUE)
-#print(all(rownames(cmap)==df_annotation$gene_symbol))
-#rownames(cmap) <- df_annotation$gene_id
+print(all(rownames(cmap)==df_annotation$gene_symbol))
+rownames(cmap) <- df_annotation$gene_id
 keegEnrichResults <-  fastenrichment(sigInfo$sig_id,
                                      geneInfo$gene_id,
                                      cmap,
@@ -328,6 +457,62 @@ stat3Info <- sigInfo %>% filter(cmap_name=='STAT3')
 
 emb <- emb[which(rownames(emb) %in% sigInfo$sig_id),] 
 #emb <- emb[sigInfo$sig_id,]
+
+# # Euclidean distances or cosine similarities in latent space
+# #distance <- as.matrix(dist(emb, method = "euclidean",diag = F,upper = F))
+# library(lsa)
+# X <- t(emb)
+# distance <- cosine(X)
+# colnames(distance) <- rownames(emb)
+# rownames(distance) <- rownames(emb)
+# 
+# ### Convert matrix into data frame
+# # Keep only unique (non-self) pairs
+# distance[lower.tri(distance,diag = T)] <- -100
+# dist <- reshape2::melt(distance)
+# dist <- dist %>% filter(value != -100)
+# 
+# sigInfo <- sigInfo %>% select(sig_id,cmap_name,cell_iname,pert_idose,pert_itime,duplIdentifier) %>% unique()
+# 
+# # Merge meta-data info and distances values
+# dist <- left_join(dist,sigInfo,by = c("Var1"="sig_id"))
+# dist <- left_join(dist,sigInfo,by = c("Var2"="sig_id"))
+# dist <- dist %>% mutate(is_duplicate = (duplIdentifier.x==duplIdentifier.y))
+# dist <- dist %>% filter(!is.na(value))
+# #saveRDS(dist,'../results/sim_cosine_latent_5dupls.rds')
+# gc()
+# 
+# # Keep only STAT3 with other candidate pairs
+# dist <- dist %>% filter(cmap_name.x=='STAT3' | cmap_name.y=='STAT3')
+# dist <- dist %>% filter(!(cmap_name.x=='STAT3' & cmap_name.y=='STAT3'))
+# dist <- dist %>% filter(cell_iname.x==cell_iname.y)
+# dist <- dist %>% mutate(cell_iname = cell_iname.x) %>% dplyr::select(-cell_iname.x,-cell_iname.y) %>% unique()
+# 
+# # # First aggregate duplicates
+# # dist <- dist %>% mutate(pairID=ifelse(cmap_name.x!='STAT3',duplIdentifier.x,duplIdentifier.y)) %>%
+# #   group_by(pairID) %>% mutate(med_value=median(value)) %>% ungroup()
+# # dist$value <- dist$med_value
+# # dist <- dist %>% dplyr::select(-med_value,-Var1,-Var2,-duplIdentifier.x,-duplIdentifier.y) %>% unique()
+# #df <- dist %>% group_by(pairID) %>% summarise(n())
+# 
+# # Get neighbors per cell
+# cells <- unique(as.character(dist$cell_iname))
+# 
+# # Filter dist
+# dist_filtered <- dist %>% filter(value>=0.3) #from duplicates distr and because it is cosine
+# 
+# # Get counts of how many times each candidate was found as a neighbor
+# genes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
+# genes <- genes[-which(genes=='STAT3')]
+# 
+# dist_filtered <- dist_filtered %>% mutate(proportion=0)
+# for (i in 1:length(genes)){
+#   inds <- which(dist_filtered$cmap_name.x==genes[i] | dist_filtered$cmap_name.y==genes[i])
+#   df <- dist %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+#   df_filtered <- dist_filtered %>% filter(cmap_name.x==genes[i] | cmap_name.y==genes[i]) %>% dplyr::select(-cmap_name.x,-cmap_name.y) %>% unique()
+#   proportion <- length(unique(df_filtered$cell_iname))/length(unique(df$cell_iname))
+#   dist_filtered$proportion[inds] <- proportion
+# }
 
 ### After clustering anlysis get 250 clusters
 km <- kmeans(emb,200,iter.max = 30)
