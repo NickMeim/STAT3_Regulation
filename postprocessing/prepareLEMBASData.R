@@ -14,6 +14,10 @@ cores <- 15
 registerDoFuture()
 plan(multiprocess,workers = cores)
 
+### NEED TO CREATE A SIGNALING MODEL WITH INPUT THE GENE KNOCKOUTS NODES AND 
+### FILTER SHRNAS NOT IN THE NETWORK
+### FILTER CCLE GENES NOT IN THE NETWORK
+
 ### Load data and keep only well-inferred and landmark genes----
 # Check L1000 documentation for information.
 geneInfo <- read.delim('../data/geneinfo_beta.txt')
@@ -78,6 +82,22 @@ for (fold in folds){
   data.table::fwrite(as.data.frame(val_samples),paste0('../data/10fold_cross_validation/random/val_sample_',i,'.csv'),row.names = T)
   
   i <- i+1
+}
+
+### Split 3fold validation by keeping 4 cell-lines out every time----
+library(caret)
+total_samples <- unique(sigInfo$cell_iname)
+folds <- createFolds(total_samples, k = 3, list = TRUE, returnTrain = TRUE)
+
+i <- 0
+for (fold in folds){
+  samples <- total_samples[fold]
   
+  train_samples <- sigInfo %>% filter(cell_iname %in% samples)
+  val_samples <- sigInfo %>% filter(!(cell_iname %in% samples))
   
+  data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/train_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/val_sample_',i,'.csv'),row.names = T)
+  
+  i <- i+1
 }

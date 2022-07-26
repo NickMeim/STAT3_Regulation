@@ -41,6 +41,7 @@ data/CCLE/CCLE_expression.csv
 data/CCLE/CRISPR_gene_effect.csv
 data/CCLE/sample_info.csv
 data/10fold_cross_validation/
+data/3fold_cross_validation/
 learning/.ipynb_checkpoints
 inputFile_paths
 .Rproj.user
