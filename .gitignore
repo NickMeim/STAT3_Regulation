@@ -37,6 +37,10 @@ data/level5_beta_trt_cp_n720216x12328.gctx
 data/siginfo_beta.txt
 data/dorothea.tsv
 data/compoundinfo_beta.txt
+data/CCLE/CCLE_expression.csv
+data/CCLE/CRISPR_gene_effect.csv
+data/CCLE/sample_info.csv
+data/10fold_cross_validation/
 learning/.ipynb_checkpoints
 inputFile_paths
 .Rproj.user
