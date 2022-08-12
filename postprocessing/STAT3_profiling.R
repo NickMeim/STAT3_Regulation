@@ -424,6 +424,8 @@ for (i in 1:length(genes)){
 }
 
 # Keep those that are similar with STAT3 in at least half of the cell-lines
+#length(which(dist_filtered$proportion>=0.334))/nrow(dist_filtered)
+#dist_filtered <- dist_filtered %>% filter(proportion>=0.3)
 dist_filtered <- dist_filtered %>% filter(proportion>=0.5)
 GSEAgenes <- unique(c(dist_filtered$cmap_name.x,dist_filtered$cmap_name.y))
 GSEAgenes <- GSEAgenes[-which(GSEAgenes=='STAT3')]
