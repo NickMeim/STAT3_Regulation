@@ -14,10 +14,6 @@ cores <- 15
 registerDoFuture()
 plan(multiprocess,workers = cores)
 
-### NEED TO CREATE A SIGNALING MODEL WITH INPUT THE GENE KNOCKOUTS NODES AND 
-### FILTER SHRNAS NOT IN THE NETWORK
-### FILTER CCLE GENES NOT IN THE NETWORK
-
 ### Load data and keep only well-inferred and landmark genes----
 # Check L1000 documentation for information.
 geneInfo <- read.delim('../data/geneinfo_beta.txt')
@@ -101,3 +97,10 @@ for (fold in folds){
   
   i <- i+1
 }
+
+### NEED TO CREATE A SIGNALING MODEL WITH INPUT THE GENE KNOCKOUTS NODES AND 
+### first get all shrnas and get rid of those not in omnipath. Then trim an omnipath model using the infered tfs.
+### FILTER SHRNAS NOT IN THE NETWORK ---> those not in the trimmed omnipath
+### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
+
+### Knock-outs are simulated as putting -5 in the input node
