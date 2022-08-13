@@ -47,6 +47,18 @@ sigInfo <- sigInfo %>%
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
 
+### Filter multiple time points
+sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
+  mutate(time_points=n_distinct(pert_itime)) %>% mutate(tas_max=max(tas)) %>%
+  mutate(timekeep=ifelse(tas==tas_max | time_points==1,pert_itime,NA)) %>%  
+  mutate(timekeep = unique(timekeep)[which(!is.na(unique(timekeep)))]) %>% ungroup() %>%
+  filter(pert_itime==timekeep) %>% dplyr::select(-timekeep,-time_points,-timefree_id,-tas_max) %>% unique()
+
+## Load omnipath
+interactions <- read.delim('../preprocessing/preprocessed_data/FilteredOmnipath.tsv') %>% column_to_rownames('X')
+## Filter shRNAs not in OmniPath
+sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(interactions$source,interactions$target))) %>% unique()
+
 ### Load CCLE data----
 ccle <- t(data.table::fread('../data/CCLE/CCLE_expression.csv') %>% column_to_rownames('V1'))
 ccle <- as.data.frame(ccle) %>% rownames_to_column('V1') %>% separate(V1,c('gene_id','useless'),sep=" ") %>%
@@ -92,14 +104,66 @@ for (fold in folds){
   train_samples <- sigInfo %>% filter(cell_iname %in% samples)
   val_samples <- sigInfo %>% filter(!(cell_iname %in% samples))
   
+  print(paste0('Train cells:',length(unique(train_samples$cell_iname))))
+  print(paste0('Val cells:',length(unique(val_samples$cell_iname))))
+  
   data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/train_sample_',i,'.csv'),row.names = T)
   data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/val_sample_',i,'.csv'),row.names = T)
   
   i <- i+1
 }
 
+### Infer transcription factors with Dorothea----
+minNrOfGenes = 5
+# Load requeired packages
+library("dorothea")
+dorotheaData = read.table('../data/dorothea.tsv', sep = "\t", header=TRUE)
+confidenceFilter = is.element(dorotheaData$confidence, c('A', 'B'))
+dorotheaData = dorotheaData[confidenceFilter,]
+
+# Load GeX 
+# Split sig_ids to run in parallel
+sigIds <- unique(sigInfo$sig_id)
+sigList <-  split(sigIds, 
+                  ceiling(seq_along(sigIds)/ceiling(length(sigIds)/cores)))
+# Parallelize parse_gctx function
+# Path to raw data
+ds_path <- '../../../../../L1000_2021_11_23/level5_beta_trt_sh_n238351x12328.gctx'
+# rid is the gene entrez_id to find the gene in the data
+# cid is the sig_id, meaning the sampe id
+# path is the path to the data
+parse_gctx_parallel <- function(path ,rid,cid){
+  gctx_file <- parse_gctx(path ,rid = rid,cid = cid)
+  return(gctx_file@mat)
+}
+# Parse the data file in parallel
+cmap_gctx <- foreach(sigs = sigList) %dopar% {
+  parse_gctx_parallel(ds_path ,
+                      rid = unique(as.character(geneInfo$gene_id)),
+                      cid = sigs)
+}
+cmap <-do.call(cbind,cmap_gctx)
+df_annotation = data.frame(gene_id=rownames(cmap))
+geneInfo$gene_id <- as.character(geneInfo$gene_id)
+df_annotation <- left_join(df_annotation,geneInfo)
+print(all(rownames(cmap)==df_annotation$gene_id))
+rownames(cmap) <- df_annotation$gene_symbol
+
+# Estimate TF activities
+settings = list(verbose = TRUE, minsize = minNrOfGenes)
+TF_activities = run_viper(cmap, dorotheaData, options =  settings)
+
+TF_activities <- 1/(1+exp(-TF_activities))
+TF_activities <- t(TF_activities)
+hist(TF_activities)
+TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(interactions$source,interactions$target)))]
+write.table(TF_activities, file = '../results/filtered_shrnas_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+
+### Create signaling model------------------
+
 ### NEED TO CREATE A SIGNALING MODEL WITH INPUT THE GENE KNOCKOUTS NODES AND 
-### first get all shrnas and get rid of those not in omnipath. Then trim an omnipath model using the infered tfs.
+### Trim an omnipath model using the infered tfs.
 ### FILTER SHRNAS NOT IN THE NETWORK ---> those not in the trimmed omnipath
 ### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
 
