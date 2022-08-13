@@ -7,6 +7,7 @@
 6.	CompoundScreening.R : It contains the code for screening drugs that induce a similar effect as STAT3 knockdown.
 7.	GOanalysis.R: It contains code to perform the same gene set analysis we used for KEGG pathways, but now with utilizing GO terms as gene sets.
 8.	prepareLEMBASData.R: Pre-process and split data to later train a LEMBAS model.
+9.	trimMacrophageModel.py: Script to tim the prior knowledge network adopted and modified from https://github.com/Lauffenburger-Lab/LEMBAS
 
 ## References
 [^1]: F. Iorio, R. Bosotti, E. Scacheri, V. Belcastro, P. Mithbaokar, R. Ferriero, L. Murino, R. Tagliaferri, N. Brunetti-Pierri and A. Isacchi, Proc. Natl. Acad. Sci. U. S. A., 2010, 107, 14621–14626
