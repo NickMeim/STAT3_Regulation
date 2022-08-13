@@ -72,46 +72,6 @@ ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
 write.table(ccle, file = '../data/CCLE/preprocessed_ccle.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### Create LEMBAS split for implementation with basal cell signal-----
-sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
-
-### Split random 10fold validation----
-library(caret)
-total_samples <- sigInfo$sig_id
-folds <- createFolds(total_samples, k = 10, list = TRUE, returnTrain = TRUE)
-
-i <- 0
-for (fold in folds){
-  samples <- total_samples[fold]
-  
-  train_samples <- sigInfo %>% filter(sig_id %in% samples)
-  val_samples <- sigInfo %>% filter(!(sig_id %in% samples))
-  
-  data.table::fwrite(as.data.frame(train_samples),paste0('../data/10fold_cross_validation/random/train_sample_',i,'.csv'),row.names = T)
-  data.table::fwrite(as.data.frame(val_samples),paste0('../data/10fold_cross_validation/random/val_sample_',i,'.csv'),row.names = T)
-  
-  i <- i+1
-}
-
-### Split 3fold validation by keeping 4 cell-lines out every time----
-library(caret)
-total_samples <- unique(sigInfo$cell_iname)
-folds <- createFolds(total_samples, k = 3, list = TRUE, returnTrain = TRUE)
-
-i <- 0
-for (fold in folds){
-  samples <- total_samples[fold]
-  
-  train_samples <- sigInfo %>% filter(cell_iname %in% samples)
-  val_samples <- sigInfo %>% filter(!(cell_iname %in% samples))
-  
-  print(paste0('Train cells:',length(unique(train_samples$cell_iname))))
-  print(paste0('Val cells:',length(unique(val_samples$cell_iname))))
-  
-  data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/train_sample_',i,'.csv'),row.names = T)
-  data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/val_sample_',i,'.csv'),row.names = T)
-  
-  i <- i+1
-}
 
 ### Infer transcription factors with Dorothea----
 minNrOfGenes = 5
@@ -162,9 +122,64 @@ write.table(TF_activities, file = '../results/filtered_shrnas_tf_activities.tsv'
 
 ### Create signaling model------------------
 
-### NEED TO CREATE A SIGNALING MODEL WITH INPUT THE GENE KNOCKOUTS NODES AND 
-### Trim an omnipath model using the infered tfs.
-### FILTER SHRNAS NOT IN THE NETWORK ---> those not in the trimmed omnipath
-### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
+### Targeted TFS
+tfs_tageted <- colnames(TF_activities)[which(colnames(TF_activities) %in% unique(sigInfo$cmap_name))]
+tfs_tageted <- as.data.frame(tfs_tageted)
+colnames(tfs_tageted) <- 'Entry'
+write.table(tfs_tageted, file = '../preprocessing/preprocessed_data/targetd_tfs.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
-### Knock-outs are simulated as putting -5 in the input node
+### FILTER SHRNAS AND TFS NOT IN THE TRIMMED NETWORK
+pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model.tsv')
+sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
+TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(pkn$source,pkn$target)))]
+write.table(TF_activities, file = '../results/trimmed_shrnas_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
+ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
+ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
+write.table(ccle, file = '../data/CCLE/trimmed_ccle.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+### Split random 10fold validation----
+sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
+
+library(caret)
+total_samples <- sigInfo$sig_id
+folds <- createFolds(total_samples, k = 10, list = TRUE, returnTrain = TRUE)
+
+i <- 0
+for (fold in folds){
+  samples <- total_samples[fold]
+  
+  train_samples <- sigInfo %>% filter(sig_id %in% samples)
+  val_samples <- sigInfo %>% filter(!(sig_id %in% samples))
+  
+  data.table::fwrite(as.data.frame(train_samples),paste0('../data/10fold_cross_validation/random/train_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(val_samples),paste0('../data/10fold_cross_validation/random/val_sample_',i,'.csv'),row.names = T)
+  
+  i <- i+1
+}
+
+### Split 3fold validation by keeping 4 cell-lines out every time----
+library(caret)
+total_samples <- unique(sigInfo$cell_iname)
+folds <- createFolds(total_samples, k = 3, list = TRUE, returnTrain = TRUE)
+
+i <- 0
+for (fold in folds){
+  samples <- total_samples[fold]
+  
+  train_samples <- sigInfo %>% filter(cell_iname %in% samples)
+  val_samples <- sigInfo %>% filter(!(cell_iname %in% samples))
+  
+  print(paste0('Train cells:',length(unique(train_samples$cell_iname))))
+  print(paste0('Val cells:',length(unique(val_samples$cell_iname))))
+  
+  data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/train_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/val_sample_',i,'.csv'),row.names = T)
+  
+  i <- i+1
+}
+
+### Knock-outs are simulated as putting -5 in the input node----
+# Create a general condition input data (there are not multiple doses (only NAs and a specific dose))
+# Probably finding the cmap_name while training and saying -5 there is sufficient
