@@ -183,3 +183,7 @@ for (fold in folds){
 ### Knock-outs are simulated as putting -5 in the input node----
 # Create a general condition input data (there are not multiple doses (only NAs and a specific dose))
 # Probably finding the cmap_name while training and saying -5 there is sufficient
+sigInfo <- sigInfo %>% dplyr::select(sig_id,cmap_name) %>% unique()
+sigInfo <- sigInfo %>% mutate(value=-5) %>% spread('cmap_name','value')
+sigInfo[is.na(sigInfo)] <- 0
+write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
