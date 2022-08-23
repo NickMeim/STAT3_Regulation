@@ -12,17 +12,15 @@ from scipy import stats
 from sklearn.preprocessing import StandardScaler
 import logging
 
-# =============================================================================
-# logging.basicConfig(level=logging.INFO, format='%(message)s')
-# logger = logging.getLogger()
-# print2log = logger.info
-# 
-# parser = argparse.ArgumentParser(prog='Cell-line simulation')
-# parser.add_argument('--leaveIn', action='store', default=None)
-# args = parser.parse_args()
-# curentId = int(args.leaveIn)
-# =============================================================================
-curentId = 0
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger()
+print2log = logger.info
+
+parser = argparse.ArgumentParser(prog='KDs simulation')
+parser.add_argument('--leaveIn', action='store', default=None)
+args = parser.parse_args()
+curentId = int(args.leaveIn)
+
 
 # Probably large enough batches to use batch level regularization
 def uniformLoss(data, targetMin = 0, targetMax = 0.99, maxConstraintFactor = 1):
@@ -49,7 +47,7 @@ class cellLayer(torch.nn.Module):
         super(cellLayer, self).__init__()
 
         weights = torch.ones(numberOfGenes, requires_grad=True, dtype=torch.double)
-        weights.data = 1e-4 * weights.data
+        weights.data = 1e-3 * weights.data
         bias = torch.zeros(numberOfGenes, requires_grad=True, dtype=torch.double)
         self.weights = torch.nn.Parameter(weights)
         self.bias = torch.nn.Parameter(bias)
@@ -134,19 +132,27 @@ cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtere
 cellLineMember = cellLineMember.set_index('sig_id')
 TrainCellLineMember = cellLineMember.loc[train_samples.sig_id.values,:]
 cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle.tsv', sep='\t', low_memory=False, index_col=0)
-scaler = StandardScaler()
-cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
-cellLineLevels_scaled.index = cellLineLevels.index
-cellLineLevels_scaled.columns = cellLineLevels.columns
+# scaler = StandardScaler()
+# cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
+# cellLineLevels_scaled.index = cellLineLevels.index
+# cellLineLevels_scaled.columns = cellLineLevels.columns
+cellLineLevels_scaled = cellLineLevels.copy()
 cellLineLevels_scaled = cellLineLevels_scaled.T
 missingValues = numpy.setdiff1d(nodeNames, cellLineLevels_scaled.index.values)
 #Zero padding:
 df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels_scaled.shape[1])), index=missingValues, columns=cellLineLevels_scaled.columns)
 cellLineLevels_scaled = cellLineLevels_scaled.append(df)
 cellLineLevels_scaled = cellLineLevels_scaled.loc[nodeNames,:]
+cellLineLevels_scaled = cellLineLevels_scaled/cellLineLevels_scaled.max() # scale between zero and one
 geneData = cellLineLevels_scaled.values.dot(TrainCellLineMember.values.T).T
-#scaler = StandardScaler()
-#geneData = scaler.fit_transform(geneData)
+# cellLineLevels = pandas.read_csv('viabilityModel/cellLineRKPMZscored.tsv', sep='\t', low_memory=False, index_col=0)
+# cellLineLevels = cellLineLevels.loc[:,TrainCellLineMember.columns]
+# missingValues = numpy.setdiff1d(nodeNames, cellLineLevels.index.values)
+# #Zero padding:
+# df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels.shape[1])), index=missingValues, columns=cellLineLevels.columns)
+# cellLineLevels = cellLineLevels.append(df)
+# cellLineLevels = cellLineLevels.loc[nodeNames,:]
+# geneData = cellLineLevels.values.dot(TrainCellLineMember.values.T).T
 
 
 # Build model
@@ -165,8 +171,8 @@ Y = torch.tensor(trainTFs.values.copy(), dtype=torch.double)
 MoAFactor = 0.1
 spectralFactor = 1e-3
 noiseLevel = 1e-4
-batchSize = 512
-maxIter = 3
+batchSize = 1024
+maxIter = 250
 L2 = 1e-5
 
 referenceState = copy.deepcopy(model.state_dict())
@@ -177,7 +183,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0)
 resetState = optimizer.state.copy()
 
 mLoss = criterion(torch.mean(Y, dim=0) * torch.ones(Y.shape), Y)
-print(mLoss)
+print2log(mLoss)
 
 N = X.shape[0]
 
@@ -224,7 +230,7 @@ for e in range(e, maxIter):
 
         curEig.append(spectralRadius.item())
     spectral_r.append(numpy.max(curEig))
-    scheduler.step()
+    #scheduler.step()
 
     # stats = plotting.storeProgress(stats, e, curLoss, curEig, curLr, violations=model.signalingModel.getNumberOfViolations())
 
@@ -238,15 +244,15 @@ for e in range(e, maxIter):
     outString += ',Spectral Loss={:.4f}'.format(spectralRadiusLoss.item())
     trainLoss.append(loss.item())
     mseLoss.append(fitLoss.item())
-    if e % 100 == 0:
-        print(outString)
+    if e % 50 == 0:
+        print2log(outString)
 
     # if numpy.logical_and(e % 250 == 0, e>0):
     #    optimizer.state = resetState.copy()
 
 model.eval()
 Yhat, YhatFull = model(X,Xcell)
-torch.save(model, '../results/crossValRes/model_' + str(curentId) + '.pt')
+torch.save(model, '../results/crossValRes/ep250/model_' + str(curentId) + '.pt')
 
 # %%
 spectralCapacity = numpy.exp(numpy.log(1e-6) / model.signalingModel.param['iterations'])
@@ -262,7 +268,7 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.yscale('log')
 plt.show()
-plt.savefig('../figures/crossValRes/training_loss_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/training_loss_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.plot(T, mseLoss)
@@ -272,7 +278,7 @@ plt.ylabel('MSE')
 plt.xlabel('Epoch')
 plt.yscale('log')
 plt.show()
-plt.savefig('../figures/crossValRes/training_mse_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/training_mse_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.scatter(Yhat.detach().numpy(), Y.detach().numpy(), alpha=0.2)
@@ -284,27 +290,27 @@ plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
 plt.show()
-plt.savefig('../figures/crossValRes/fit_performance_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/fit_performance_' + str(curentId) + '.png', dpi=600)
 
 plt.rcParams["figure.figsize"] = (12, 10)
 plt.figure()
-rank = plotting.compareAllTFs(Yhat, Y, variable)
+rank = plotting.compareAllTFs(Yhat, Y, outName)
 plt.show()
-plt.savefig('../figures/crossValRes/perTF_fit_train_' + str(curentId) + '.png', dpi=600)
-plt.figure()
-rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
-plt.show()
-plt.savefig('../figures/crossValRes/perSample_fit_train_' + str(curentId) + '.png', dpi=600)
-plotting.displayData(Y, sampleName, variable)
-plt.show()
-plt.savefig('../figures/crossValRes/heatmap_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/perTF_fit_train_' + str(curentId) + '.png', dpi=600)
+# plt.figure()
+# rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
+# plt.show()
+# plt.savefig('../figures/crossValRes/ep250/perSample_fit_train_' + str(curentId) + '.png', dpi=600)
+# plotting.displayData(Y, sampleName, outName)
+# plt.show()
+# plt.savefig('../figures/crossValRes/heatmap_' + str(curentId) + '.png', dpi=600)
 
-fitData = pandas.DataFrame(Yhat.detach().numpy(), index=sampleName, columns=variable)
-fitData.to_csv('../results/crossValRes/fit_' + str(curentId) + '.tsv', sep='\t')
+fitData = pandas.DataFrame(Yhat.detach().numpy(), index=sampleName, columns=outName)
+fitData.to_csv('../results/crossValRes/ep250/fit_' + str(curentId) + '.tsv', sep='\t')
 
 plt.figure()
 plt.hist(spectral_r)
-plt.savefig('../figures/crossValRes/spectral_r_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/spectral_r_' + str(curentId) + '.png', dpi=600)
 
 ## Validation
 val_samples = pandas.read_csv('../data/10fold_cross_validation/random/val_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
@@ -332,12 +338,12 @@ plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
 plt.show()
-plt.savefig('../figures/crossValRes/validation_performance_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/validation_performance_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 rank = plotting.compareAllTFs(Yhat, Y, outName)
-plt.savefig('../figures/crossValRes/perTF_fit_validation_' + str(curentId) + '.png', dpi=600)
-plt.figure()
-rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
-plt.savefig('../figures/crossValRes/perSample_fit_validation_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ep250/perTF_fit_validation_' + str(curentId) + '.png', dpi=600)
+# plt.figure()
+# rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
+# plt.savefig('../figures/crossValRes/ep250/perSample_fit_validation_' + str(curentId) + '.png', dpi=600)
 
