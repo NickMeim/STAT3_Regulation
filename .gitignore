@@ -8,6 +8,8 @@ preprocessing/preprocessed_data/dupl_shRNA_mean_dist_long.rds
 preprocessing/preprocessed_data/prior_knowledge_trimmed_net.txt
 preprocessing/preprocessed_data/all_filtered_Kds.tsv
 preprocessing/preprocessed_data/all_filtered_cells.tsv
+preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv
+preprocessing/preprocessed_data/all_filtered_cells_v2.tsv
 postprocessing/.Rhistory
 postprocessing/.Rproj.user/
 postprocessing/omnipathr-log

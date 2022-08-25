@@ -108,7 +108,7 @@ coreSources = ['KEGG', 'InnateDB','SIGNOR']
 
 
 #Load and trim PKN
-PKN = pd.read_csv('../preprocessing/preprocessed_data/FilteredOmnipath.tsv', sep='\t', low_memory=False, index_col=0)
+PKN = pd.read_csv('../preprocessing/preprocessed_data/FilteredOmnipath_v2.tsv', sep='\t', low_memory=False, index_col=0)
 PKNFull = PKN.copy()
 
 TFgene = pd.read_csv('../results/filtered_shrnas_tf_activities.tsv', sep='\t', low_memory=False, index_col=0)
@@ -124,5 +124,5 @@ PKN = MaxSubgraph(PKN)
 allTFs = numpy.intersect1d(allTFs, PKN['target'])
 
 
-PKN.to_csv('../preprocessing/preprocessed_data/PKN-Model.tsv', sep='\t', index=False)
+PKN.to_csv('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv', sep='\t', index=False)
 

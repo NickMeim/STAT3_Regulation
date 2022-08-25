@@ -54,8 +54,23 @@ sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',
   mutate(timekeep = unique(timekeep)[which(!is.na(unique(timekeep)))]) %>% ungroup() %>%
   filter(pert_itime==timekeep) %>% dplyr::select(-timekeep,-time_points,-timefree_id,-tas_max) %>% unique()
 
+
+# First load Omnipath prior knowledge network (PKN)
+library(OmnipathR)
+interactions <- import_omnipath_interactions()
+interactions <- interactions %>% mutate(kegg=grepl(pattern="KEGG",x=sources)) %>% 
+  mutate(signoir=grepl(pattern="SIGNOR",x=sources)) %>% filter(kegg==T | signoir==T)
+interactions <- interactions  %>% filter(n_resources>1) %>% dplyr::select(c('source'='source_genesymbol'),
+                                                                          c('target'='target_genesymbol'),
+                                                                          is_inhibition,is_stimulation) %>% unique()
+
+interactions <- interactions %>% filter(!(is_inhibition==0 & is_stimulation==0)) %>% unique()
+interactions <- interactions %>% mutate(interaction=ifelse(is_stimulation!=0,1,-1)) %>%
+  dplyr::select(source,interaction,target) %>% unique()
+
+write.table(interactions, file = '../preprocessing/preprocessed_data/FilteredOmnipath_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 ## Load omnipath
-interactions <- read.delim('../preprocessing/preprocessed_data/FilteredOmnipath.tsv') %>% column_to_rownames('X')
+interactions <- read.delim('../preprocessing/preprocessed_data/FilteredOmnipath_v2.tsv') %>% column_to_rownames('X')
 ## Filter shRNAs not in OmniPath
 sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(interactions$source,interactions$target))) %>% unique()
 
@@ -129,15 +144,15 @@ colnames(tfs_tageted) <- 'Entry'
 write.table(tfs_tageted, file = '../preprocessing/preprocessed_data/targetd_tfs.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### FILTER SHRNAS AND TFS NOT IN THE TRIMMED NETWORK
-pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model.tsv')
+pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
 sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
 TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(pkn$source,pkn$target)))]
-write.table(TF_activities, file = '../results/trimmed_shrnas_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(TF_activities, file = '../results/trimmed_shrnas_tf_activities_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
 ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
 ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
-write.table(ccle, file = '../data/CCLE/trimmed_ccle.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(ccle, file = '../data/CCLE/trimmed_ccle_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### Split random 10fold validation----
 sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
@@ -187,7 +202,7 @@ cellInfo <- sigInfo %>% dplyr::select(sig_id,cell_iname) %>% unique()
 sigInfo <- sigInfo %>% dplyr::select(sig_id,cmap_name) %>% unique()
 sigInfo <- sigInfo %>% mutate(value=-5) %>% spread('cmap_name','value')
 sigInfo[is.na(sigInfo)] <- 0
-write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 cellInfo <- cellInfo %>% mutate(value=1) %>% spread('cell_iname','value')
 cellInfo[is.na(cellInfo)] <- 0
-write.table(cellInfo, file = '../preprocessing/preprocessed_data/all_filtered_cells.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(cellInfo, file = '../preprocessing/preprocessed_data/all_filtered_cells_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
