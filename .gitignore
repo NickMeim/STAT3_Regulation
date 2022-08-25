@@ -33,6 +33,7 @@ results/df_kelbow_new.rds
 results/GSEAgenes.xlsx
 results/latentgenes.xlsx
 results/dist_all_q1_shRNAs_with_STAT3.rds
+results/GOTerms/*
 figures/.Rhistory
 figures/.Rproj.user/
 data/geneinfo_beta.txt
