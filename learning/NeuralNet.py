@@ -10,16 +10,12 @@ import argparse
 import activationFunctions
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
-import logging
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger()
-print2log = logger.info
-
-parser = argparse.ArgumentParser(prog='KDs simulation')
-parser.add_argument('--leaveIn', action='store', default=None)
-args = parser.parse_args()
-curentId = int(args.leaveIn)
+#parser = argparse.ArgumentParser(prog='KDs simulation')
+#parser.add_argument('--leaveIn', action='store', default=None)
+#args = parser.parse_args()
+#curentId = int(args.leaveIn)
+curentId = 0
 
 
 # Probably large enough batches to use batch level regularization
@@ -113,30 +109,31 @@ inputAmplitude = 1.2
 projectionAmplitude = 0.1
 
 # Load network
-networkList, nodeNames, modeOfAction = bionetwork.loadNetwork('../preprocessing/preprocessed_data/PKN-Model.tsv')
+networkList, nodeNames, modeOfAction = bionetwork.loadNetwork('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
 
 # Load input output data
 #Load samples
 train_samples = pandas.read_csv('../data/10fold_cross_validation/random/train_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
+train_samples = train_samples.sample(frac=1).reset_index(drop=True)
 #Load TFs
-TFsData = pandas.read_csv('../results/trimmed_shrnas_tf_activities.tsv',sep='\t', low_memory=False,index_col=0)
+TFsData = pandas.read_csv('../results/trimmed_shrnas_tf_activities_v2.tsv',sep='\t', low_memory=False,index_col=0)
 trainTFs = TFsData.loc[train_samples.sig_id.values,:]
 outName = list(trainTFs.columns)
 #Load KDs
-allKds = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_Kds.tsv',sep='\t', low_memory=False,index_col=0)
+allKds = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv',sep='\t', low_memory=False,index_col=0)
 allKds = allKds.set_index('sig_id')
 inName = list(allKds.columns)
 trainKds = allKds.loc[train_samples.sig_id.values,:]
 #Load cell line data
-cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells.tsv', sep='\t', low_memory=False, index_col=0)
+cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells_v2.tsv', sep='\t', low_memory=False, index_col=0)
 cellLineMember = cellLineMember.set_index('sig_id')
 TrainCellLineMember = cellLineMember.loc[train_samples.sig_id.values,:]
-cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle.tsv', sep='\t', low_memory=False, index_col=0)
-# scaler = StandardScaler()
-# cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
-# cellLineLevels_scaled.index = cellLineLevels.index
-# cellLineLevels_scaled.columns = cellLineLevels.columns
-cellLineLevels_scaled = cellLineLevels.copy()
+cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle_v2.tsv', sep='\t', low_memory=False, index_col=0)
+scaler = StandardScaler()
+cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
+cellLineLevels_scaled.index = cellLineLevels.index
+cellLineLevels_scaled.columns = cellLineLevels.columns
+# cellLineLevels_scaled = cellLineLevels.copy()
 cellLineLevels_scaled = cellLineLevels_scaled.T
 missingValues = numpy.setdiff1d(nodeNames, cellLineLevels_scaled.index.values)
 #Zero padding:
@@ -158,7 +155,8 @@ geneData = cellLineLevels_scaled.values.dot(TrainCellLineMember.values.T).T
 # Build model
 model = fullModel(nodeNames, inName, outName, networkList, modeOfAction, inputAmplitude, projectionAmplitude)
 model.signalingModel.preScaleWeights()
-model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 1  # Begin with signal from all input TFs
+model.inputLayer.weights.requires_grad = False
+#model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 1  # den xreiazetai gia edo
 
 criterion = torch.nn.MSELoss()
 
@@ -171,7 +169,7 @@ Y = torch.tensor(trainTFs.values.copy(), dtype=torch.double)
 MoAFactor = 0.1
 spectralFactor = 1e-3
 noiseLevel = 1e-4
-batchSize = 1024
+batchSize = 512
 maxIter = 250
 L2 = 1e-5
 
@@ -183,7 +181,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0)
 resetState = optimizer.state.copy()
 
 mLoss = criterion(torch.mean(Y, dim=0) * torch.ones(Y.shape), Y)
-print2log(mLoss)
+print(mLoss)
 
 N = X.shape[0]
 
@@ -199,7 +197,9 @@ for e in range(e, maxIter):
     trainloader = bionetwork.getSamples(N, batchSize)
     for dataIndex in trainloader:
         model.train()
+        model.signalingModel.weights.data = model.signalingModel.weights.data + 1e-8 * torch.randn(model.signalingModel.weights.shape)  # breaks potential symmetries
         optimizer.zero_grad()
+        
         dataIn = X[dataIndex, :].view(len(dataIndex), X.shape[1])
         dataOut = Y[dataIndex, :].view(len(dataIndex), Y.shape[1])
         dataCell = Xcell[dataIndex, :].view(len(dataIndex), Xcell.shape[1])
@@ -244,8 +244,8 @@ for e in range(e, maxIter):
     outString += ',Spectral Loss={:.4f}'.format(spectralRadiusLoss.item())
     trainLoss.append(loss.item())
     mseLoss.append(fitLoss.item())
-    if e % 50 == 0:
-        print2log(outString)
+    if e % 5 == 0:
+        print(outString)
 
     # if numpy.logical_and(e % 250 == 0, e>0):
     #    optimizer.state = resetState.copy()

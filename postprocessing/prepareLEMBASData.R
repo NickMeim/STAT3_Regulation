@@ -46,6 +46,42 @@ sigInfo <- sigInfo %>%
 
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
+gc()
+### Find out which shRNAs actually worked
+# Load all cmap
+#cmap <- readRDS('../../../../../L1000_2021_11_23/cmap_gex_shrna_q1replicates.rds')
+#gc()
+#cmap <- cmap[,which(colnames(cmap) %in% unique(sigInfo$sig_id))]
+#gc()
+#cmap_ranked <- apply(cmap,2,rank)
+#gc()
+#saveRDS(cmap_ranked,'../../../../../L1000_2021_11_23/cmap_gex_shrna_q1replicates_ranked.rds')
+#df_annotation = data.frame(gene_id=rownames(cmap))
+#geneInfo$gene_id <- as.character(geneInfo$gene_id)
+#df_annotation <- left_join(df_annotation,geneInfo)
+#print(all(rownames(cmap)==df_annotation$gene_id))
+#rownames(cmap) <- df_annotation$gene_symbol
+
+shRNA_kd_significance <- function(sig,sigInfo,cmap){
+  gene <- sigInfo$cmap_name[which(sigInfo$sig_id==sig)]
+  cell <- sigInfo$cell_iname[which(sigInfo$sig_id==sig)]
+  if (gene %in% rownames(cmap)){
+    value <- cmap[gene,sig]
+    data <- sigInfo %>% filter(cell_iname==cell)
+    null_cell_distribution <- cmap[gene,data$sig_id]
+    pval <- sum(null_cell_distribution<=value)/length(null_cell_distribution)
+  }else{
+    pval <- NA
+  }
+  return(pval)
+}
+
+#p.values <- sapply(sigInfo$sig_id,shRNA_kd_significance,sigInfo,cmap)
+#print(all(names(p.values)==sigInfo$sig_id))
+#saveRDS(p.values,'../results/shRNAs_significance.rds')
+p.values <- readRDS('../results/shRNAs_significance.rds')
+sigInfo$p.value <- p.values
+sigInfo <- sigInfo %>% filter(!is.na(p.value)) %>% filter(p.value<0.05)
 
 ### Filter multiple time points
 sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
@@ -200,7 +236,7 @@ for (fold in folds){
 # Probably finding the cmap_name while training and saying -5 there is sufficient
 cellInfo <- sigInfo %>% dplyr::select(sig_id,cell_iname) %>% unique()
 sigInfo <- sigInfo %>% dplyr::select(sig_id,cmap_name) %>% unique()
-sigInfo <- sigInfo %>% mutate(value=-5) %>% spread('cmap_name','value')
+sigInfo <- sigInfo %>% mutate(value=-10) %>% spread('cmap_name','value')
 sigInfo[is.na(sigInfo)] <- 0
 write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 cellInfo <- cellInfo %>% mutate(value=1) %>% spread('cell_iname','value')
