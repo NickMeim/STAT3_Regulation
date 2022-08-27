@@ -190,8 +190,163 @@ ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
 ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
 write.table(ccle, file = '../data/CCLE/trimmed_ccle_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
-### Split random 10fold validation----
 sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
+
+### Ligands modeling--------------------------------------------------------------
+# Check L1000 documentation for information.
+geneInfo <- read.delim('../data/geneinfo_beta.txt')
+geneInfo <-  geneInfo %>% filter(feature_space != "inferred")
+# Keep only protein-coding genes
+geneInfo <- geneInfo %>% filter(gene_type=="protein-coding")
+
+#Load signature info and split data to high quality replicates and low quality replicates
+sigInfo <- read.delim('../data/siginfo_beta.txt')
+
+# Create a proxy for quality of replicates
+# Keep only samples with at least 3 replicates and that satisfy specific conditions.
+# Check the LINCS2020 Release Metadata Field Definitions.xlsx file for 
+# a complete description of each argument. It can be accessed online 
+# or in the data folder.
+
+sigInfo <- sigInfo %>% 
+  mutate(quality_replicates = ifelse(is_exemplar_sig==1 & qc_pass==1 & nsample>=3,1,0))
+# Filter only experiments of ligands
+sigInfo <- sigInfo %>% filter(pert_type=='trt_lig')
+sigInfo <- sigInfo %>% filter(quality_replicates==1)
+sigInfo <- sigInfo %>% filter(tas>0.01)
+
+# Create identifier to signify duplicate
+# signatures: meaning same drug, same dose,
+# same time duration, same cell-type
+sigInfo <- sigInfo %>% 
+  mutate(duplIdentifier = paste0(cmap_name,"_",pert_idose,"_",pert_itime,"_",cell_iname))
+
+sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
+  mutate(dupl_counts = n()) %>% ungroup()
+gc()
+
+# Filter cell-lines not in ccle
+sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
+
+### Filter multiple time points
+sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
+  mutate(time_points=n_distinct(pert_itime)) %>% mutate(tas_max=max(tas)) %>%
+  mutate(timekeep=ifelse(tas==tas_max | time_points==1,pert_itime,NA)) %>%  
+  mutate(timekeep = unique(timekeep)[which(!is.na(unique(timekeep)))]) %>% ungroup() %>%
+  filter(pert_itime==timekeep) %>% dplyr::select(-timekeep,-time_points,-timefree_id,-tas_max) %>% unique()
+
+### FILTER ligands not in the trimmed net
+pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
+sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
+### Get rid of multiple duplicates (keep only one for now)
+sigInfo <- sigInfo %>% 
+  mutate(duplIdentifier = paste0(cmap_name,"_",pert_idose,"_",pert_itime,"_",cell_iname)) %>% group_by(duplIdentifier) %>%
+  mutate(dupl_counts = n()) %>% ungroup()
+sigInfo$dupl_keep <- FALSE
+for (i in 1:nrow(sigInfo)){
+  if (sigInfo$dupl_counts[i]>1){
+    tmp <- sigInfo %>% filter(duplIdentifier==sigInfo$duplIdentifier[i])
+    max_tas = min(tmp$tas)
+    sig <- tmp$sig_id[which(tmp$tas==max_tas)]
+    sigInfo$dupl_keep[which(sigInfo$sig_id==sig)] <- TRUE
+  }else{
+    sigInfo$dupl_keep[i] <- TRUE
+  }
+  if (i%%100==0){
+    print(paste0('Finished:',i))
+  }
+}
+sigInfo <- sigInfo %>% filter(dupl_keep==TRUE) %>% dplyr::select(-dupl_keep) %>% unique()
+
+### Infer transcription factors with Dorothea
+minNrOfGenes = 5
+# Load requeired packages
+library("dorothea")
+dorotheaData = read.table('../data/dorothea.tsv', sep = "\t", header=TRUE)
+confidenceFilter = is.element(dorotheaData$confidence, c('A', 'B'))
+dorotheaData = dorotheaData[confidenceFilter,]
+
+# Load GeX 
+# Split sig_ids to run in parallel
+sigIds <- unique(sigInfo$sig_id)
+sigList <-  split(sigIds, 
+                  ceiling(seq_along(sigIds)/ceiling(length(sigIds)/cores)))
+# Parallelize parse_gctx function
+# Path to raw data
+ds_path <- '../../../../../L1000_2021_11_23/level5_beta_trt_misc_n8283x12328.gctx'
+# rid is the gene entrez_id to find the gene in the data
+# cid is the sig_id, meaning the sampe id
+# path is the path to the data
+parse_gctx_parallel <- function(path ,rid,cid){
+  gctx_file <- parse_gctx(path ,rid = rid,cid = cid)
+  return(gctx_file@mat)
+}
+# Parse the data file in parallel
+cmap_gctx <- foreach(sigs = sigList) %dopar% {
+  parse_gctx_parallel(ds_path ,
+                      rid = unique(as.character(geneInfo$gene_id)),
+                      cid = sigs)
+}
+cmap <-do.call(cbind,cmap_gctx)
+df_annotation = data.frame(gene_id=rownames(cmap))
+geneInfo$gene_id <- as.character(geneInfo$gene_id)
+df_annotation <- left_join(df_annotation,geneInfo)
+print(all(rownames(cmap)==df_annotation$gene_id))
+rownames(cmap) <- df_annotation$gene_symbol
+
+# Estimate TF activities
+settings = list(verbose = TRUE, minsize = minNrOfGenes)
+TF_activities = run_viper(cmap, dorotheaData, options =  settings)
+
+TF_activities <- 1/(1+exp(-TF_activities))
+TF_activities <- t(TF_activities)
+hist(TF_activities)
+TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(pkn$source,pkn$target)))]
+write.table(TF_activities, file = '../results/trimmed_ligands_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+
+### Get condition matrix (log dose)
+print(unique(sigInfo$pert_dose_unit))
+min_val <- 0.1 # ng/mL
+sigInfo <- sigInfo %>% mutate(log10Dose = ifelse(pert_dose_unit=="ng/uL",log10(1000*pert_dose/min_val+1),log10(pert_dose/min_val+1)))
+hist(sigInfo$log10Dose)
+
+conditionMatrix <- sigInfo %>% dplyr::select(sig_id,cmap_name,log10Dose) %>% unique()
+conditionMatrix <- as.matrix(conditionMatrix %>% spread(cmap_name,log10Dose) %>% column_to_rownames('sig_id'))
+conditionMatrix[which(is.na(conditionMatrix))] <- 0.0
+write.table(conditionMatrix,'../results/Ligands_conditions.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+cellInfo <- sigInfo %>% dplyr::select(sig_id,cell_iname) %>% unique()
+cellInfo <- cellInfo %>% mutate(value=1) %>% spread('cell_iname','value')
+cellInfo[is.na(cellInfo)] <- 0
+write.table(cellInfo, file = '../preprocessing/preprocessed_data/all_filtered_cells_ligand.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+
+### Split random 10fold validation----
+
+### Only for cell-line specific models
+sigInfo <- sigInfo %>% group_by(cell_iname) %>% mutate(samples_per_cell=n_distinct(sig_id)) %>% ungroup()
+sigInfo <- sigInfo %>% filter(cell_iname=='HT29')
+
+### Get rid of multiple duplicates (keep only one for now)
+sigInfo <- sigInfo %>% 
+  mutate(duplIdentifier = paste0(cmap_name,"_",pert_idose,"_",pert_itime,"_",cell_iname)) %>% group_by(duplIdentifier) %>%
+  mutate(dupl_counts = n()) %>% ungroup()
+sigInfo$dupl_keep <- FALSE
+for (i in 1:nrow(sigInfo)){
+  if (sigInfo$dupl_counts[i]>1){
+    tmp <- sigInfo %>% filter(duplIdentifier==sigInfo$duplIdentifier[i])
+    max_tas = min(tmp$tas)
+    sig <- tmp$sig_id[which(tmp$tas==max_tas)]
+    sigInfo$dupl_keep[which(sigInfo$sig_id==sig)] <- TRUE
+  }else{
+    sigInfo$dupl_keep[i] <- TRUE
+  }
+  if (i%%100==0){
+    print(paste0('Finished:',i))
+  }
+}
+sigInfo <- sigInfo %>% filter(dupl_keep==TRUE) %>% dplyr::select(-dupl_keep) %>% unique()
 
 library(caret)
 total_samples <- sigInfo$sig_id
@@ -204,8 +359,8 @@ for (fold in folds){
   train_samples <- sigInfo %>% filter(sig_id %in% samples)
   val_samples <- sigInfo %>% filter(!(sig_id %in% samples))
   
-  data.table::fwrite(as.data.frame(train_samples),paste0('../data/10fold_cross_validation/random/train_sample_',i,'.csv'),row.names = T)
-  data.table::fwrite(as.data.frame(val_samples),paste0('../data/10fold_cross_validation/random/val_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(train_samples),paste0('../data/10fold_cross_validation/Ligands/train_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(val_samples),paste0('../data/10fold_cross_validation/Ligands/val_sample_',i,'.csv'),row.names = T)
   
   i <- i+1
 }
