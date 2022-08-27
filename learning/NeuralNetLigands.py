@@ -104,12 +104,14 @@ class fullModel(torch.nn.Module):
         self.signalingModel = bionetwork.bionet(networkList, len(nodeNames), modeOfAction, bionetParams, 'MML',
                                                 torch.double)
         self.projectionLayer = bionetwork.projectOutput(nodeNames, outName, projectionAmplitude, torch.double)
+        self.bn = torch.nn.BatchNorm1d(len(outName), momentum=0.4,dtype=torch.double)
 
     def forward(self, dataIn, dataCell, noiseLevel=0):
         Yin = self.inputLayer(dataIn) + self.cellModel(dataCell)
         Yin = Yin + noiseLevel * torch.randn(Yin.shape)
         YhatFull = self.signalingModel(Yin)
         Yhat = self.projectionLayer(YhatFull)
+        Yhat = self.bn(Yhat)
 
         return Yhat, YhatFull
 
@@ -173,6 +175,7 @@ model = fullModel(nodeNames, inName, outName, networkList, modeOfAction, inputAm
 model.signalingModel.preScaleWeights()
 model.inputLayer.weights.requires_grad = False
 #model.projectionLayer.weights.requires_grad = False
+#model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
 model.signalingModel.bias.data[numpy.isin(nodeNames, inName)] = 1  #Begin with signalal from all ligands
 
 criterion = torch.nn.MSELoss()
@@ -191,10 +194,10 @@ noiseLevel = 1e-3
 L2 = 1e-6
 
 referenceState = copy.deepcopy(model.state_dict())
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=0)
-#scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-#                                            step_size=5000,
-#                                            gamma=0.5)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.1, weight_decay=0)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                           step_size=2000,
+                                           gamma=0.1)
 resetState = optimizer.state.copy()
 
 mLoss = criterion(torch.mean(Y, dim=0) * torch.ones(Y.shape), Y)
@@ -209,6 +212,8 @@ spectral_r = []
 curState = torch.rand((Y.shape[0], model.signalingModel.bias.shape[0]), dtype=torch.double, requires_grad=False)
 
 for e in range(e, maxIter):
+    # curLr = bionetwork.oneCycle(e, maxIter, maxHeight=1e-1, startHeight=1e-3, endHeight=5e-3, peak=5)
+    # optimizer.param_groups[0]['lr'] = curLr
     curLoss = []
     curEig = []
     trainloader = bionetwork.getSamples(N, batchSize)
@@ -247,7 +252,7 @@ for e in range(e, maxIter):
 
         curEig.append(spectralRadius.item())
     spectral_r.append(numpy.max(curEig))
-    #scheduler.step()
+    scheduler.step()
 
     # stats = plotting.storeProgress(stats, e, curLoss, curEig, curLr, violations=model.signalingModel.getNumberOfViolations())
 
@@ -261,7 +266,7 @@ for e in range(e, maxIter):
     outString += ',Spectral Loss={:.4f}'.format(spectralRadiusLoss.item())
     trainLoss.append(loss.item())
     mseLoss.append(fitLoss.item())
-    if e % 100 == 0:
+    if e % 50 == 0:
         print(outString)
 
     # if numpy.logical_and(e % 250 == 0, e>0):
