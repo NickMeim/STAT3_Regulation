@@ -10,7 +10,9 @@ preprocessing/preprocessed_data/all_filtered_Kds.tsv
 preprocessing/preprocessed_data/all_filtered_cells.tsv
 preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv
 preprocessing/preprocessed_data/all_filtered_cells_v2.tsv
+preprocessing/preprocessed_data/all_filtered_cells_ligandpkn.tsv
 preprocessing/preprocessed_data/all_filtered_cells_ligand.tsv
+preprocessing/preprocessed_data/all_filtered_Kds_ligandpkn.tsv
 preprocessing/preprocessed_data/all_filtered_Kds_HT29.tsv
 postprocessing/.Rhistory
 postprocessing/.Rproj.user/
@@ -52,5 +54,7 @@ data/10fold_cross_validation/
 data/3fold_cross_validation/
 learning/.ipynb_checkpoints
 learning/__pycache__
+syntheticModel/*.png
+syntheticModel/*.tsv
 inputFile_paths
 .Rproj.user

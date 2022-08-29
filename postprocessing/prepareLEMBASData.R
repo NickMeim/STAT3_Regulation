@@ -180,15 +180,27 @@ colnames(tfs_tageted) <- 'Entry'
 write.table(tfs_tageted, file = '../preprocessing/preprocessed_data/targetd_tfs.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### FILTER SHRNAS AND TFS NOT IN THE TRIMMED NETWORK
-pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
+#pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
+pkn <- read.delim('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model.tsv')
+# annot <- read.delim('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Annotation.tsv') %>% dplyr::select(code,name)
+# pkn <- left_join(pkn,annot,by=c('source'='code'))
+# pkn <- left_join(pkn,annot,by=c('target'='code'))
+# pkn <- pkn %>% dplyr::select(-source,-target)
+# colnames(pkn)[(ncol(pkn)-1):ncol(pkn)] <- c('source','target')
+# pkn <- pkn %>% dplyr::select(source,target,direction,stimulation,inhibition,sources,references)
+# #pkn <- pkn %>% filter(!(inhibition==0 & stimulation==0)) %>% unique()
+# pkn <- pkn %>% mutate(interaction=ifelse(stimulation==1,ifelse(inhibition!=1,1,0),ifelse(inhibition!=0,-1,0))) %>%
+#   dplyr::select(source,interaction,target) %>% unique()
+# write.table(pkn,'../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model.tsv', quote=FALSE, sep = "\t", row.names = FALSE)
+
 sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
 TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(pkn$source,pkn$target)))]
-write.table(TF_activities, file = '../results/trimmed_shrnas_tf_activities_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(TF_activities, file = '../results/trimmed_shrnas_tf_activities_ligandpkn.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 ### FILTER CCLE GENES NOT IN THE NETWORK ---> those not in the trimmed omnipath.
 ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
 ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
-write.table(ccle, file = '../data/CCLE/trimmed_ccle_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(ccle, file = '../data/CCLE/trimmed_ccle_ligandpkn.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
 sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
 
@@ -213,7 +225,7 @@ sigInfo <- sigInfo %>%
 # Filter only experiments of ligands
 sigInfo <- sigInfo %>% filter(pert_type=='trt_lig')
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
-sigInfo <- sigInfo %>% filter(tas>0.01)
+sigInfo <- sigInfo %>% filter(tas>0.2)
 
 # Create identifier to signify duplicate
 # signatures: meaning same drug, same dose,
@@ -226,9 +238,23 @@ sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
 gc()
 
 # Filter cell-lines not in ccle
+### Load CCLE data
+ccle <- t(data.table::fread('../data/CCLE/CCLE_expression.csv') %>% column_to_rownames('V1'))
+ccle <- as.data.frame(ccle) %>% rownames_to_column('V1') %>% separate(V1,c('gene_id','useless'),sep=" ") %>%
+  dplyr::select(-useless) %>% column_to_rownames('gene_id')
+ccle <- as.data.frame(t(ccle)) %>% rownames_to_column('DepMap_ID')
+sample_info <- data.table::fread('../data/CCLE/sample_info.csv') %>% dplyr::select(DepMap_ID,stripped_cell_line_name) %>%
+  unique()
+ccle <- left_join(ccle,sample_info) %>% dplyr::select(-DepMap_ID) %>%
+  column_to_rownames('stripped_cell_line_name')
+ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
+ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
+write.table(ccle, file = '../data/CCLE/trimmed_ccle_ligands.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
 sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
 
 ### Filter multiple time points
+sigInfo <- sigInfo %>% filter(pert_time<=12)
 sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
   mutate(time_points=n_distinct(pert_itime)) %>% mutate(tas_max=max(tas)) %>%
   mutate(timekeep=ifelse(tas==tas_max | time_points==1,pert_itime,NA)) %>%  
@@ -236,7 +262,7 @@ sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',
   filter(pert_itime==timekeep) %>% dplyr::select(-timekeep,-time_points,-timefree_id,-tas_max) %>% unique()
 
 ### FILTER ligands not in the trimmed net
-pkn <- read.delim('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
+pkn <- read.delim('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model.tsv')
 sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
 ### Get rid of multiple duplicates (keep only one for now)
 sigInfo <- sigInfo %>% 
@@ -380,8 +406,8 @@ for (fold in folds){
   print(paste0('Train cells:',length(unique(train_samples$cell_iname))))
   print(paste0('Val cells:',length(unique(val_samples$cell_iname))))
   
-  data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/train_sample_',i,'.csv'),row.names = T)
-  data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/val_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(train_samples),paste0('../data/3fold_cross_validation/cell_based/Ligands/train_sample_',i,'.csv'),row.names = T)
+  data.table::fwrite(as.data.frame(val_samples),paste0('../data/3fold_cross_validation/cell_based/Ligands/val_sample_',i,'.csv'),row.names = T)
   
   i <- i+1
 }
@@ -393,7 +419,7 @@ cellInfo <- sigInfo %>% dplyr::select(sig_id,cell_iname) %>% unique()
 sigInfo <- sigInfo %>% dplyr::select(sig_id,cmap_name) %>% unique()
 sigInfo <- sigInfo %>% mutate(value=-10) %>% spread('cmap_name','value')
 sigInfo[is.na(sigInfo)] <- 0
-write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(sigInfo, file = '../preprocessing/preprocessed_data/all_filtered_Kds_ligandpkn.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 cellInfo <- cellInfo %>% mutate(value=1) %>% spread('cell_iname','value')
 cellInfo[is.na(cellInfo)] <- 0
-write.table(cellInfo, file = '../preprocessing/preprocessed_data/all_filtered_cells_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+write.table(cellInfo, file = '../preprocessing/preprocessed_data/all_filtered_cells_ligandpkn.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
