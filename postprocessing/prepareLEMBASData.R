@@ -23,6 +23,7 @@ geneInfo <- geneInfo %>% filter(gene_type=="protein-coding")
 
 #Load signature info and split data to high quality replicates and low quality replicates
 sigInfo <- read.delim('../data/siginfo_beta.txt')
+sigInfo <- sigInfo %>% mutate(pert_itime= paste(pert_time,pert_time_unit))
 
 # Create a proxy for quality of replicates
 # Keep only samples with at least 3 replicates and that satisfy specific conditions.
@@ -34,7 +35,52 @@ sigInfo <- sigInfo %>%
   mutate(quality_replicates = ifelse(is_exemplar_sig==1 & qc_pass==1 & nsample>=3,1,0))
 # Filter only experiments of shrnas
 sigInfo <- sigInfo %>% filter(pert_type=='trt_sh')
+
+### Plot number of data points per time point
+### Boxplot of tas + pvalue per time point
+p <- ggplot(sigInfo %>% group_by(pert_itime) %>% mutate(n_points=n()) %>% ungroup() %>%
+              mutate(n_points=as.numeric(n_points)) %>%
+              mutate(pert_itime=factor(pert_itime,
+                                       levels = c('6 h','24 h','48 h','72 h',
+                                                             '96 h','120 h','144 h','168 h'))) %>% 
+              dplyr::select(pert_itime,n_points) %>% unique(),
+            aes(pert_itime,n_points)) +
+  geom_bar(stat="identity") + scale_y_log10() +
+  xlab('Perturbation time duration (h)') + ylab('Number of data points (log10 scale)')
+print(p)
+
+p <- ggplot(sigInfo %>% group_by(pert_itime) %>% mutate(n_points=n()) %>% ungroup() %>%
+              mutate(n_points=as.numeric(n_points)) %>%
+              mutate(pert_itime=factor(pert_itime,
+                                       levels = c('6 h','24 h','48 h','72 h',
+                                                  '96 h','120 h','144 h','168 h'))) %>% 
+              dplyr::select(pert_itime,tas) %>% unique(),
+            aes(pert_itime,tas)) + geom_boxplot()+
+  xlab('Perturbation time duration (h)') + ylab('Transcriptional Activity Score')
+print(p)
+
+
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
+p <- ggplot(sigInfo %>% group_by(pert_itime) %>% mutate(n_points=n()) %>% ungroup() %>%
+              mutate(n_points=as.numeric(n_points)) %>%
+              mutate(pert_itime=factor(pert_itime,
+                                       levels = c('6 h','24 h','48 h','72 h',
+                                                  '96 h','120 h','144 h','168 h'))) %>% 
+              dplyr::select(pert_itime,n_points) %>% unique(),
+            aes(pert_itime,n_points)) +
+  geom_bar(stat="identity") + scale_y_log10() +
+  xlab('Perturbation time duration (h)') + ylab('Number of data points (log10 scale)')
+print(p)
+
+p <- ggplot(sigInfo %>% group_by(pert_itime) %>% mutate(n_points=n()) %>% ungroup() %>%
+              mutate(n_points=as.numeric(n_points)) %>%
+              mutate(pert_itime=factor(pert_itime,
+                                       levels = c('6 h','24 h','48 h','72 h',
+                                                  '96 h','120 h','144 h','168 h'))) %>% 
+              dplyr::select(pert_itime,tas) %>% unique(),
+            aes(pert_itime,tas)) + geom_boxplot()+
+  xlab('Perturbation time duration (h)') + ylab('Transcriptional Activity Score')
+print(p)
 
 #sigInfo <- sigInfo %>% filter(tas>=0.25) # We keep all of them since they are statistically significant to have more hits
 
@@ -83,6 +129,20 @@ p.values <- readRDS('../results/shRNAs_significance.rds')
 sigInfo$p.value <- p.values
 sigInfo <- sigInfo %>% filter(!is.na(p.value)) %>% filter(p.value<0.05)
 
+### Plot number of data points per time point
+### Boxplot of tas + pvalue per time point
+p <- ggplot(sigInfo %>% group_by(pert_itime) %>% mutate(n_points=n()) %>% ungroup() %>%
+              mutate(n_points=as.numeric(n_points)) %>%
+              mutate(pert_itime=factor(pert_itime,
+                                       levels = c('6 h','24 h','48 h','72 h',
+                                                  '96 h','120 h','144 h','168 h'))) %>% 
+              dplyr::select(pert_itime,n_points) %>% unique(),
+            aes(pert_itime,n_points)) +
+  geom_bar(stat="identity") + scale_y_log10() +
+  xlab('Perturbation time duration (h)') + ylab('Number of data points (log10 scale)')
+print(p)
+
+
 ### Filter multiple time points
 sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
   mutate(time_points=n_distinct(pert_itime)) %>% mutate(tas_max=max(tas)) %>%
@@ -100,8 +160,10 @@ interactions <- interactions  %>% filter(n_resources>1) %>% dplyr::select(c('sou
                                                                           c('target'='target_genesymbol'),
                                                                           is_inhibition,is_stimulation) %>% unique()
 
-interactions <- interactions %>% filter(!(is_inhibition==0 & is_stimulation==0)) %>% unique()
-interactions <- interactions %>% mutate(interaction=ifelse(is_stimulation!=0,1,-1)) %>%
+#interactions <- interactions %>% filter(!(is_inhibition==0 & is_stimulation==0)) %>% unique()
+interactions <- interactions %>% mutate(interaction=ifelse(is_stimulation==1,
+                                                           ifelse(is_inhibition!=1,1,0),
+                                                           ifelse(is_inhibition!=0,-1,0))) %>%
   dplyr::select(source,interaction,target) %>% unique()
 
 write.table(interactions, file = '../preprocessing/preprocessed_data/FilteredOmnipath_v2.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
@@ -225,7 +287,7 @@ sigInfo <- sigInfo %>%
 # Filter only experiments of ligands
 sigInfo <- sigInfo %>% filter(pert_type=='trt_lig')
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
-sigInfo <- sigInfo %>% filter(tas>0.2)
+sigInfo <- sigInfo %>% filter(tas>0.1)
 
 # Create identifier to signify duplicate
 # signatures: meaning same drug, same dose,
@@ -237,6 +299,11 @@ sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
 gc()
 
+pkn <- read.delim('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model_uniprot.tsv')
+annot <- read.delim('../data/annotation/uniprot-reviewed_yes+AND+organism__Homo+sapiens+(Human)+[9606]_.tab')
+annot <- annot %>% dplyr::select(Gene.names...primary..,Entry) %>% unique()
+colnames(annot) <- c('cmap_name','cmap_name_uniprot')
+
 # Filter cell-lines not in ccle
 ### Load CCLE data
 ccle <- t(data.table::fread('../data/CCLE/CCLE_expression.csv') %>% column_to_rownames('V1'))
@@ -247,6 +314,17 @@ sample_info <- data.table::fread('../data/CCLE/sample_info.csv') %>% dplyr::sele
   unique()
 ccle <- left_join(ccle,sample_info) %>% dplyr::select(-DepMap_ID) %>%
   column_to_rownames('stripped_cell_line_name')
+ccle_genes <- data.frame("cmap_name"=colnames(ccle))
+ccle_genes <- left_join(ccle_genes,annot)
+ccle_genes <- ccle_genes %>% filter(!is.na(cmap_name_uniprot))
+ccle_genes <- ccle_genes %>% filter(cmap_name_uniprot %in% unique(c(pkn$source,pkn$target)))
+ccle_genes <- ccle_genes %>% group_by(cmap_name) %>% 
+  mutate(no_uniprots=n_distinct(cmap_name_uniprot)) %>% ungroup()
+ccle_genes <- ccle_genes %>% filter(no_uniprots==1) %>% dplyr::select(-no_uniprots) %>% unique()
+ccle <- ccle[,which(colnames(ccle) %in% ccle_genes$cmap_name)]
+ccle_genes <- ccle_genes %>% filter(cmap_name %in% colnames(ccle))
+print(all(colnames(ccle)==ccle_genes$cmap_name))
+colnames(ccle) <- ccle_genes$cmap_name_uniprot
 ccle <- ccle[,which(colnames(ccle) %in% unique(c(pkn$source,pkn$target)))]
 ccle <- ccle[which(rownames(ccle) %in% unique(sigInfo$cell_iname)),]
 write.table(ccle, file = '../data/CCLE/trimmed_ccle_ligands.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
@@ -254,7 +332,7 @@ write.table(ccle, file = '../data/CCLE/trimmed_ccle_ligands.tsv', quote=FALSE, s
 sigInfo <- sigInfo %>% filter(cell_iname %in% rownames(ccle)) %>% unique()
 
 ### Filter multiple time points
-sigInfo <- sigInfo %>% filter(pert_time<=12)
+sigInfo <- sigInfo %>% filter(pert_time<=24)
 sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',cell_iname)) %>% group_by(timefree_id) %>%
   mutate(time_points=n_distinct(pert_itime)) %>% mutate(tas_max=max(tas)) %>%
   mutate(timekeep=ifelse(tas==tas_max | time_points==1,pert_itime,NA)) %>%  
@@ -262,8 +340,8 @@ sigInfo <- sigInfo %>% mutate(timefree_id = paste0(cmap_name,'_',pert_idose,'_',
   filter(pert_itime==timekeep) %>% dplyr::select(-timekeep,-time_points,-timefree_id,-tas_max) %>% unique()
 
 ### FILTER ligands not in the trimmed net
-pkn <- read.delim('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model.tsv')
-sigInfo <- sigInfo %>% filter(cmap_name %in% unique(c(pkn$source,pkn$target)))
+sigInfo <- left_join(sigInfo,annot) %>% filter(!is.na(cmap_name_uniprot)) %>% unique()
+sigInfo <- sigInfo %>% filter(cmap_name_uniprot %in% unique(c(pkn$source,pkn$target)))
 ### Get rid of multiple duplicates (keep only one for now)
 sigInfo <- sigInfo %>% 
   mutate(duplIdentifier = paste0(cmap_name,"_",pert_idose,"_",pert_itime,"_",cell_iname)) %>% group_by(duplIdentifier) %>%
@@ -327,6 +405,13 @@ TF_activities = run_viper(cmap, dorotheaData, options =  settings)
 TF_activities <- 1/(1+exp(-TF_activities))
 TF_activities <- t(TF_activities)
 hist(TF_activities)
+annot <- read.delim('../data/annotation/uniprot-reviewed_yes+AND+organism__Homo+sapiens+(Human)+[9606]_.tab')
+annot <- annot %>% dplyr::select(Gene.names...primary..,Entry) %>% unique()
+colnames(annot) <- c('cmap_name','cmap_name_uniprot')
+tfs <- data.frame("cmap_name"=colnames(TF_activities))
+tfs <- left_join(tfs,annot)
+print(all(colnames(TF_activities)==tfs$cmap_name))
+colnames(TF_activities) <- tfs$cmap_name_uniprot
 TF_activities <- TF_activities[,which(colnames(TF_activities) %in% unique(c(pkn$source,pkn$target)))]
 write.table(TF_activities, file = '../results/trimmed_ligands_tf_activities.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
@@ -337,8 +422,8 @@ min_val <- 0.1 # ng/mL
 sigInfo <- sigInfo %>% mutate(log10Dose = ifelse(pert_dose_unit=="ng/uL",log10(1000*pert_dose/min_val+1),log10(pert_dose/min_val+1)))
 hist(sigInfo$log10Dose)
 
-conditionMatrix <- sigInfo %>% dplyr::select(sig_id,cmap_name,log10Dose) %>% unique()
-conditionMatrix <- as.matrix(conditionMatrix %>% spread(cmap_name,log10Dose) %>% column_to_rownames('sig_id'))
+conditionMatrix <- sigInfo %>% dplyr::select(sig_id,cmap_name_uniprot,log10Dose) %>% unique()
+conditionMatrix <- as.matrix(conditionMatrix %>% spread(cmap_name_uniprot,log10Dose) %>% column_to_rownames('sig_id'))
 conditionMatrix[which(is.na(conditionMatrix))] <- 0.0
 write.table(conditionMatrix,'../results/Ligands_conditions.tsv', quote=FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 

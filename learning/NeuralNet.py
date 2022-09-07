@@ -97,16 +97,16 @@ class fullModel(torch.nn.Module):
     def __init__(self, nodeNames, inNames, outName, networkList, modeOfAction, inputAmplitude,projectionAmplitude):
         super(fullModel, self).__init__()
 
-        bionetParams = bionetwork.trainingParameters(iterations=100, clipping=1, targetPrecision=1e-6, leak=0.01)
+        bionetParams = bionetwork.trainingParameters(iterations=150, clipping=1, targetPrecision=1e-6, leak=0.01)
 
-        #self.cellModel = cellLayer(len(nodeNames))
+        self.cellModel = cellLayer(len(nodeNames))
         self.inputLayer = bionetwork.projectInput(nodeNames, inNames, inputAmplitude, torch.double)
         self.signalingModel = bionetwork.bionet(networkList, len(nodeNames), modeOfAction, bionetParams, 'MML',
                                                 torch.double)
         self.projectionLayer = bionetwork.projectOutput(nodeNames, outName, projectionAmplitude, torch.double)
 
-    def forward(self, dataIn, noiseLevel=0):
-        Yin = self.inputLayer(dataIn) #+ self.cellModel(dataCell)
+    def forward(self, dataIn,dataCell, noiseLevel=0):
+        Yin = self.inputLayer(dataIn) + self.cellModel(dataCell)
         Yin = Yin + noiseLevel * torch.randn(Yin.shape)
         YhatFull = self.signalingModel(Yin)
         Yhat = self.projectionLayer(YhatFull)
@@ -114,75 +114,75 @@ class fullModel(torch.nn.Module):
         return Yhat, YhatFull
 
     def L2Regularization(self, L2, lbRegularization=0.001):
-        #cellL2 = self.cellModel.L2Regularization(L2)
+        cellL2 = self.cellModel.L2Regularization(L2)
 
         # Signaling model L2
         absFilter = torch.abs(self.signalingModel.weights.detach()) > lbRegularization
         weightLoss = L2 * torch.sum(torch.square(self.signalingModel.weights[absFilter.detach()]))
         biasLoss = L2 * torch.sum(torch.square(self.signalingModel.bias))
 
-        L2Loss = weightLoss + biasLoss #+ cellL2
+        L2Loss = weightLoss + biasLoss + cellL2
         return L2Loss
 
     def signRegularization(self, MoAFactor):
-        #cellSign = self.cellModel.signRegularization(MoAFactor)
+        cellSign = self.cellModel.signRegularization(MoAFactor)
         signalingSign = self.signalingModel.signRegularization(MoAFactor)
-        #signConstraints = cellSign + signalingSign
-        return signalingSign#signConstraints
+        signConstraints = cellSign + signalingSign
+        return signConstraints
 
 
 inputAmplitude = 1.2
 projectionAmplitude = 0.1
 
 # Load network
-networkList, nodeNames, modeOfAction = bionetwork.loadNetwork('../preprocessing/preprocessed_data/PKN-Model_smaller.tsv')
+networkList, nodeNames, modeOfAction = bionetwork.loadNetwork('../preprocessing/preprocessed_data/KEGG-Model.tsv')
 
 # Load input output data
 #Load samples
-train_samples = pandas.read_csv('../data/10fold_cross_validation/HT29/train_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
+train_samples = pandas.read_csv('../data/10fold_cross_validation/KEGG/train_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
 train_samples = train_samples.sample(frac=1).reset_index(drop=True)
 #Load TFs
-TFsData = pandas.read_csv('../results/trimmed_shrnas_tf_activities_v2.tsv',sep='\t', low_memory=False,index_col=0)
+TFsData = pandas.read_csv('../results/trimmed_shrnas_tf_activities_kegg.tsv',sep='\t', low_memory=False,index_col=0)
 trainTFs = TFsData.loc[train_samples.sig_id.values,:]
 outName = list(trainTFs.columns)
 #Load KDs
-allKds = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_Kds_HT29.tsv',sep='\t', low_memory=False,index_col=0)
+allKds = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_Kds_kegg.tsv',sep='\t', low_memory=False,index_col=0)
 allKds = allKds.set_index('sig_id')
 inName = list(allKds.columns)
 trainKds = allKds.loc[train_samples.sig_id.values,:]
-trainKds = trainKds.T # only for cell-line specific models
-missingValues = numpy.setdiff1d(nodeNames, trainKds.index.values) # only for cell-line specific models
-df = pandas.DataFrame(numpy.zeros((len(missingValues), trainKds.shape[1])), index=missingValues, columns=trainKds.columns)# only for cell-line specific models
-trainKds = trainKds.append(df)# only for cell-line specific models
-trainKds = trainKds.loc[nodeNames,:] # only for cell-line specific models
-trainKds = trainKds.T # only for cell-line specific models
-inName = list(trainKds.columns)  # only for cell-line specific models
+# trainKds = trainKds.T # only for cell-line specific models
+# missingValues = numpy.setdiff1d(nodeNames, trainKds.index.values) # only for cell-line specific models
+# df = pandas.DataFrame(numpy.zeros((len(missingValues), trainKds.shape[1])), index=missingValues, columns=trainKds.columns)# only for cell-line specific models
+# trainKds = trainKds.append(df)# only for cell-line specific models
+# trainKds = trainKds.loc[nodeNames,:] # only for cell-line specific models
+# trainKds = trainKds.T # only for cell-line specific models
+# inName = list(trainKds.columns)  # only for cell-line specific models
 #Load cell line data
-cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells_v2.tsv', sep='\t', low_memory=False, index_col=0)
+cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells_kegg.tsv', sep='\t', low_memory=False, index_col=0)
 cellLineMember = cellLineMember.set_index('sig_id')
 TrainCellLineMember = cellLineMember.loc[train_samples.sig_id.values,:]
-cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle_v2.tsv', sep='\t', low_memory=False, index_col=0)
-cellLineLevels = cellLineLevels.T # only for cell-line specific models
-TrainCellLineMember = TrainCellLineMember.loc[:,'HT29'] # only for cell-line specific models
-missingValues = numpy.setdiff1d(nodeNames, cellLineLevels.index.values) # only for cell-line specific models
-df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels.shape[1])), index=missingValues, columns=cellLineLevels.columns)# only for cell-line specific models
-cellLineLevels = cellLineLevels.append(df)# only for cell-line specific models
-cellLineLevels = cellLineLevels.loc[nodeNames,:]# only for cell-line specific models
-cellLineLevels = cellLineLevels.loc[:,'HT29'] # only for cell-line specific models
-#scaler = StandardScaler()
-#cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
-#cellLineLevels_scaled.index = cellLineLevels.index
-#cellLineLevels_scaled.columns = cellLineLevels.columns
-#cellLineLevels_scaled = cellLineLevels_scaled.T
-#missingValues = numpy.setdiff1d(nodeNames, cellLineLevels_scaled.index.values)
-##Zero padding:
-#df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels_scaled.shape[1])), index=missingValues, columns=cellLineLevels_scaled.columns)
-#cellLineLevels_scaled = cellLineLevels_scaled.append(df)
-#cellLineLevels_scaled = cellLineLevels_scaled.loc[nodeNames,:]
+cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle_kegg.tsv', sep='\t', low_memory=False, index_col=0)
+# cellLineLevels = cellLineLevels.T # only for cell-line specific models
+# TrainCellLineMember = TrainCellLineMember.loc[:,'HT29'] # only for cell-line specific models
+# missingValues = numpy.setdiff1d(nodeNames, cellLineLevels.index.values) # only for cell-line specific models
+# df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels.shape[1])), index=missingValues, columns=cellLineLevels.columns)# only for cell-line specific models
+# cellLineLevels = cellLineLevels.append(df)# only for cell-line specific models
+# cellLineLevels = cellLineLevels.loc[nodeNames,:]# only for cell-line specific models
+# cellLineLevels = cellLineLevels.loc[:,'HT29'] # only for cell-line specific models
+# scaler = StandardScaler()
+# cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
+# cellLineLevels_scaled.index = cellLineLevels.index
+# cellLineLevels_scaled.columns = cellLineLevels.columns
+cellLineLevels_scaled = cellLineLevels.T
+missingValues = numpy.setdiff1d(nodeNames, cellLineLevels_scaled.index.values)
+#Zero padding:
+df = pandas.DataFrame(numpy.zeros((len(missingValues), cellLineLevels_scaled.shape[1])), index=missingValues, columns=cellLineLevels_scaled.columns)
+cellLineLevels_scaled = cellLineLevels_scaled.append(df)
+cellLineLevels_scaled = cellLineLevels_scaled.loc[nodeNames,:]
 #cellLineLevels_scaled = cellLineLevels_scaled/cellLineLevels_scaled.max() # scale between zero and one
-#geneData = cellLineLevels_scaled.values.dot(TrainCellLineMember.values.T).T
-cellLineLevels = cellLineLevels/cellLineLevels.max()# only for cell-line specific models
-geneData = cellLineLevels.values.reshape(cellLineLevels.values.shape[0],1).dot(TrainCellLineMember.values.reshape(1,TrainCellLineMember.shape[0])).T # only for cell-line specific models
+geneData = cellLineLevels_scaled.values.dot(TrainCellLineMember.values.T).T
+# cellLineLevels = cellLineLevels/cellLineLevels.max()# only for cell-line specific models
+# geneData = cellLineLevels.values.reshape(cellLineLevels.values.shape[0],1).dot(TrainCellLineMember.values.reshape(1,TrainCellLineMember.shape[0])).T # only for cell-line specific models
 
 
 # Build model
@@ -190,23 +190,23 @@ model = fullModel(nodeNames, inName, outName, networkList, modeOfAction, inputAm
 model.signalingModel.preScaleWeights()
 model.inputLayer.weights.requires_grad = False
 #model.projectionLayer.weights.requires_grad = False
-#model.signalingModel.bias.data = torch.tensor(geneData[0,:], dtype=torch.double).view(len(nodeNames),1).detach()  # den xreiazetai gia edo
+model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
 
 criterion = torch.nn.MSELoss()
 
 sampleName = trainKds.index.values
-#X = torch.tensor(trainKds.values, dtype=torch.double)
-X = torch.tensor(trainKds.values, dtype=torch.double) + torch.tensor(geneData, dtype=torch.double) # only for cell-line specific models
-#Xcell = torch.tensor(geneData, dtype=torch.double)
-Xcell = torch.tensor(geneData, dtype=torch.double).detach() # only for cell-line specific models
+X = torch.tensor(trainKds.values, dtype=torch.double)# *0.5 only for cell-line specific models
+#X = torch.tensor(trainKds.values, dtype=torch.double) + torch.tensor(geneData, dtype=torch.double) # only for cell-line specific models
+Xcell = torch.tensor(geneData, dtype=torch.double)
+# Xcell = torch.tensor(geneData, dtype=torch.double).detach() # only for cell-line specific models
 Y = torch.tensor(trainTFs.values.copy(), dtype=torch.double)
 
 # Setup optimizer
 MoAFactor = 0.1
 spectralFactor = 1e-3
-noiseLevel = 1e-5
-batchSize = 300
-maxIter = 1000
+noiseLevel = 1e-3
+batchSize = 230
+maxIter = 20000
 L2 = 1e-6
 
 referenceState = copy.deepcopy(model.state_dict())
@@ -228,6 +228,8 @@ spectral_r = []
 curState = torch.rand((Y.shape[0], model.signalingModel.bias.shape[0]), dtype=torch.double, requires_grad=False)
 
 for e in range(e, maxIter):
+    curLr = bionetwork.oneCycle(e, maxIter, maxHeight=2e-3, startHeight=5e-4, endHeight=5e-3, peak=2000)
+    optimizer.param_groups[0]['lr'] = curLr
     curLoss = []
     curEig = []
     trainloader = bionetwork.getSamples(N, batchSize)
@@ -238,18 +240,17 @@ for e in range(e, maxIter):
         
         dataIn = X[dataIndex, :].view(len(dataIndex), X.shape[1])
         dataOut = Y[dataIndex, :].view(len(dataIndex), Y.shape[1])
-        #dataCell = Xcell[dataIndex, :].view(len(dataIndex), Xcell.shape[1])
+        dataCell = Xcell[dataIndex, :].view(len(dataIndex), Xcell.shape[1])
 
         #dataCell = dataCell + noiseLevel * torch.randn(dataCell.shape)
-        #Yhat, YhatFull = model(dataIn, dataCell, noiseLevel)
-        Yhat, YhatFull = model(dataIn, noiseLevel)
+        Yhat, YhatFull = model(dataIn, dataCell, noiseLevel)
+        # Yhat, YhatFull = model(dataIn, noiseLevel)
 
         curState[dataIndex, :] = YhatFull.detach()
 
         fitLoss = criterion(dataOut, Yhat)
 
-        stateLoss = 1e-6 * uniformLoss(curState, dataIndex, YhatFull, targetMin=0., targetMax=1.,
-                                       maxConstraintFactor=10.)
+        stateLoss = 1e-5 * uniformLoss(curState, dataIndex, YhatFull, maxConstraintFactor=10.)
         #stateLoss = 1e-6 * uniformLoss(YhatFull)
         L2Loss = model.L2Regularization(L2)
         signConstraint = model.signRegularization(MoAFactor)
@@ -281,16 +282,16 @@ for e in range(e, maxIter):
     outString += ',Spectral Loss={:.4f}'.format(spectralRadiusLoss.item())
     trainLoss.append(loss.item())
     mseLoss.append(fitLoss.item())
-    if e % 50 == 0:
+    if e % 1000 == 0:
         print(outString)
 
     # if numpy.logical_and(e % 250 == 0, e>0):
     #    optimizer.state = resetState.copy()
 
 model.eval()
-#Yhat, YhatFull = model(X,Xcell)
-Yhat, YhatFull = model(X)
-torch.save(model, '../results/crossValRes/ep250/model_' + str(curentId) + '.pt')
+Yhat, YhatFull = model(X,Xcell)
+# Yhat, YhatFull = model(X)
+torch.save(model, '../results/crossValRes/eptest/model_' + str(curentId) + '.pt')
 
 # %%
 spectralCapacity = numpy.exp(numpy.log(1e-6) / model.signalingModel.param['iterations'])
@@ -305,8 +306,7 @@ plt.xlim([0, len(T)])
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.yscale('log')
-plt.show()
-plt.savefig('../figures/crossValRes/ep250/training_loss_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/eptest/training_loss_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.plot(T, mseLoss)
@@ -315,8 +315,7 @@ plt.xlim([0, len(T)])
 plt.ylabel('MSE')
 plt.xlabel('Epoch')
 plt.yscale('log')
-plt.show()
-plt.savefig('../figures/crossValRes/ep250/training_mse_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/eptest/training_mse_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.scatter(Yhat.detach().numpy(), Y.detach().numpy(), alpha=0.2)
@@ -327,46 +326,48 @@ plt.ylabel('Data')
 plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
-plt.show()
-plt.savefig('../figures/crossValRes/ep250/fit_performance_' + str(curentId) + '.png', dpi=600)
-
+plt.savefig('../figures/crossValRes/eptest/fit_performance_' + str(curentId) + '.png', dpi=600)
 plt.rcParams["figure.figsize"] = (12, 10)
 plt.figure()
 rank = plotting.compareAllTFs(Yhat, Y, outName)
-plt.show()
-plt.savefig('../figures/crossValRes/ep250/perTF_fit_train_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/eptest/perTF_fit_train_' + str(curentId) + '.png', dpi=600)
 # plt.figure()
 # rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
-# plt.show()
-# plt.savefig('../figures/crossValRes/ep250/perSample_fit_train_' + str(curentId) + '.png', dpi=600)
+#
+# plt.savefig('../figures/crossValRes/eptest/perSample_fit_train_' + str(curentId) + '.png', dpi=600)
 # plotting.displayData(Y, sampleName, outName)
-# plt.show()
 # plt.savefig('../figures/crossValRes/heatmap_' + str(curentId) + '.png', dpi=600)
 
 fitData = pandas.DataFrame(Yhat.detach().numpy(), index=sampleName, columns=outName)
-fitData.to_csv('../results/crossValRes/ep250/fit_' + str(curentId) + '.tsv', sep='\t')
+fitData.to_csv('../results/crossValRes/eptest/fit_' + str(curentId) + '.tsv', sep='\t')
 
 plt.figure()
 plt.hist(spectral_r)
-plt.savefig('../figures/crossValRes/ep250/spectral_r_' + str(curentId) + '.png', dpi=600)
-
+plt.savefig('../figures/crossValRes/eptest/spectral_r_' + str(curentId) + '.png', dpi=600)
 ## Validation
-val_samples = pandas.read_csv('../data/10fold_cross_validation/HT29/val_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
+val_samples = pandas.read_csv('../data/10fold_cross_validation/KEGG/val_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
 #Load TFs
 valTFs = TFsData.loc[val_samples.sig_id.values,:]
 #Load KDs
 valKds = allKds.loc[val_samples.sig_id.values,:]
+# valKds = valKds.T # only for cell-line specific models
+# missingValues = numpy.setdiff1d(nodeNames, valKds.index.values) # only for cell-line specific models
+# df = pandas.DataFrame(numpy.zeros((len(missingValues), valKds.shape[1])), index=missingValues, columns=valKds.columns)# only for cell-line specific models
+# valKds = valKds.append(df)# only for cell-line specific models
+# valKds = valKds.loc[nodeNames,:] # only for cell-line specific models
+# valKds = valKds.T # only for cell-line specific models
+# inName = list(valKds.columns)  # only for cell-line specific models
 #Load cell line data
-#ValCellLineMember = cellLineMember.loc[val_samples.sig_id.values,:]
-#geneData = cellLineLevels_scaled.values.dot(ValCellLineMember.values.T).T
+ValCellLineMember = cellLineMember.loc[val_samples.sig_id.values,:]
+geneData = cellLineLevels_scaled.values.dot(ValCellLineMember.values.T).T
 
 sampleName = val_samples.sig_id.values
 X = torch.tensor(valKds.values, dtype=torch.double)
-#Xcell = torch.tensor(geneData, dtype=torch.double)
+Xcell = torch.tensor(geneData, dtype=torch.double)
 Y = torch.tensor(valTFs.values.copy(), dtype=torch.double)
 
-#Yhat, YhatFull = model(X,Xcell)
-Yhat, YhatFull = model(X)
+Yhat, YhatFull = model(X,Xcell)
+# Yhat, YhatFull = model(X)
 plt.figure()
 plt.scatter(Yhat.detach().numpy(), Y.detach().numpy(), alpha=0.2)
 plotting.lineOfIdentity()
@@ -376,13 +377,12 @@ plt.ylabel('Data')
 plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
-plt.show()
-plt.savefig('../figures/crossValRes/ep250/validation_performance_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/eptest/validation_performance_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 rank = plotting.compareAllTFs(Yhat, Y, outName)
-plt.savefig('../figures/crossValRes/ep250/perTF_fit_validation_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/eptest/perTF_fit_validation_' + str(curentId) + '.png', dpi=600)
 # plt.figure()
 # rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
-# plt.savefig('../figures/crossValRes/ep250/perSample_fit_validation_' + str(curentId) + '.png', dpi=600)
+# plt.savefig('../figures/crossValRes/eptest/perSample_fit_validation_' + str(curentId) + '.png', dpi=600)
 

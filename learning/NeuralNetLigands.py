@@ -97,7 +97,7 @@ class fullModel(torch.nn.Module):
     def __init__(self, nodeNames, inNames, outName, networkList, modeOfAction, inputAmplitude,projectionAmplitude):
         super(fullModel, self).__init__()
 
-        bionetParams = bionetwork.trainingParameters(iterations=150, clipping=1, targetPrecision=1e-6, leak=0.01)
+        bionetParams = bionetwork.trainingParameters(iterations=100, clipping=1, targetPrecision=1e-6, leak=0.01)
 
         self.cellModel = cellLayer(len(nodeNames))
         self.inputLayer = bionetwork.projectInput(nodeNames, inNames, inputAmplitude, torch.double)
@@ -178,7 +178,7 @@ model = fullModel(nodeNames, inName, outName, networkList, modeOfAction, inputAm
 model.signalingModel.preScaleWeights()
 model.inputLayer.weights.requires_grad = False
 #model.projectionLayer.weights.requires_grad = False
-model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
+# model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
 model.signalingModel.bias.data[numpy.isin(nodeNames, inName)] = 1  #Begin with signalal from all ligands
 
 criterion = torch.nn.MSELoss()
@@ -189,15 +189,15 @@ Xcell = torch.tensor(geneData, dtype=torch.double)
 Y = torch.tensor(trainTFs.values.copy(), dtype=torch.double)
 
 #Setup optimizer
-batchSize = 25 #128
+batchSize = 24 #128
 MoAFactor = 0.1
 spectralFactor = 1e-3
 maxIter = 500 #1000
 noiseLevel = 1e-3 #1e-4
-L2 = 1e-5 #1e-7
+L2 = 1e-6 #1e-7
 
 referenceState = copy.deepcopy(model.state_dict())
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=0)
+optimizer = torch.optim.Adam(model.parameters(), lr=1.0, weight_decay=0)
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
 #                                            step_size=400,
 #                                            gamma=0.1)
@@ -215,14 +215,14 @@ spectral_r = []
 curState = torch.rand((Y.shape[0], model.signalingModel.bias.shape[0]), dtype=torch.double, requires_grad=False)
 
 for e in range(e, maxIter):
-    curLr = bionetwork.oneCycle(e, maxIter, maxHeight=1e-2, startHeight=1e-3, endHeight=5e-3, peak=5)
+    curLr = bionetwork.oneCycle(e, maxIter, maxHeight=2e-3, startHeight=1e-5, endHeight=2e-3, peak=5)
     optimizer.param_groups[0]['lr'] = curLr
     curLoss = []
     curEig = []
     trainloader = bionetwork.getSamples(N, batchSize)
     for dataIndex in trainloader:
         model.train()
-        model.signalingModel.weights.data = model.signalingModel.weights.data + 1e-8 * torch.randn(model.signalingModel.weights.shape)  # breaks potential symmetries
+        #model.signalingModel.weights.data = model.signalingModel.weights.data + 1e-8 * torch.randn(model.signalingModel.weights.shape)  # breaks potential symmetries
         optimizer.zero_grad()
         
         dataIn = X[dataIndex, :].view(len(dataIndex), X.shape[1])
@@ -236,8 +236,7 @@ for e in range(e, maxIter):
 
         fitLoss = criterion(dataOut, Yhat)
 
-        stateLoss = 1e-5 * uniformLoss(curState, dataIndex, YhatFull, targetMin=0., targetMax=0.999,
-                                      maxConstraintFactor=50.)
+        stateLoss = 1e-5 * uniformLoss(curState, dataIndex, YhatFull, maxConstraintFactor=50.)
         # stateLoss = 1e-5 * uniformLoss(YhatFull,maxConstraintFactor=10.)
         L2Loss = model.L2Regularization(L2)
         signConstraint = model.signRegularization(MoAFactor)
@@ -272,8 +271,8 @@ for e in range(e, maxIter):
     if e % 10 == 0:
         print(outString)
 
-    # if numpy.logical_and(e % 250 == 0, e>0):
-    #    optimizer.state = resetState.copy()
+    if numpy.logical_and(e % 20 == 0, e>0):
+       optimizer.state = resetState.copy()
 
 model.eval()
 Yhat, YhatFull = model(X,Xcell)

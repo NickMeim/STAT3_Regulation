@@ -52,6 +52,7 @@ data/CCLE/CRISPR_gene_effect.csv
 data/CCLE/sample_info.csv
 data/10fold_cross_validation/
 data/3fold_cross_validation/
+data/annotation/omnipath_webservice_interactions__recent.tsv
 learning/.ipynb_checkpoints
 learning/__pycache__
 syntheticModel/*.png
