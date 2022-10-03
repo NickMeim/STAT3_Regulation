@@ -14,6 +14,8 @@ preprocessing/preprocessed_data/all_filtered_cells_ligandpkn.tsv
 preprocessing/preprocessed_data/all_filtered_cells_ligand.tsv
 preprocessing/preprocessed_data/all_filtered_Kds_ligandpkn.tsv
 preprocessing/preprocessed_data/all_filtered_Kds_HT29.tsv
+preprocessing/preprocessed_data/ligandsL100.pt
+preprocessing/preprocessed_data/old_uniform_loss_bs24ep6000_ligands_allcells.pt
 postprocessing/.Rhistory
 postprocessing/.Rproj.user/
 postprocessing/omnipathr-log
@@ -48,13 +50,16 @@ data/siginfo_beta.txt
 data/dorothea.tsv
 data/compoundinfo_beta.txt
 data/CCLE/CCLE_expression.csv
+data/CCLE/CCLE_expression_old.csv
 data/CCLE/CRISPR_gene_effect.csv
 data/CCLE/sample_info.csv
+data/CCLE/sample_info_old.csv
 data/10fold_cross_validation/
 data/3fold_cross_validation/
 data/annotation/omnipath_webservice_interactions__recent.tsv
 learning/.ipynb_checkpoints
 learning/__pycache__
+learning/ligands_states_L100.pt
 syntheticModel/*.png
 syntheticModel/*.tsv
 inputFile_paths

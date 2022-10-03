@@ -10,60 +10,65 @@ import argparse
 import activationFunctions
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
+# import logging
 
-#parser = argparse.ArgumentParser(prog='KDs simulation')
-#parser.add_argument('--leaveIn', action='store', default=None)
-#args = parser.parse_args()
-#curentId = int(args.leaveIn)
+# logging.basicConfig(level=logging.INFO, format='%(message)s')
+# logger = logging.getLogger()
+# print2log = logger.info
+#
+# parser = argparse.ArgumentParser(prog='KDs simulation')
+# parser.add_argument('--leaveIn', action='store', default=None)
+# args = parser.parse_args()
+# curentId = int(args.leaveIn)
 curentId = 0
 
 
 # Probably large enough batches to use batch level regularization
-# def uniformLoss(data, targetMin = 0, targetMax = 0.99, maxConstraintFactor = 1):
-#     targetMean = (targetMax-targetMin)/2
-#     targetVar= (targetMax-targetMin)**2/12
-#
-#     nodeMean = torch.mean(data, dim=0)
-#     nodeVar = torch.mean(torch.square(data-nodeMean), dim=0)
-#     maxVal, _ = torch.max(data, dim=0)
-#     minVal, _ = torch.min(data, dim=0)
-#
-#     meanLoss = torch.sum(torch.square(nodeMean - targetMean))
-#     varLoss =  torch.sum(torch.square(nodeVar - targetVar))
-#     maxLoss = torch.sum(torch.square(maxVal - targetMax))
-#     minloss = torch.sum(torch.square(minVal- targetMin))
-#     maxConstraint = -maxConstraintFactor * torch.sum(maxVal[maxVal.detach()<=0]) #max value should never be negative
-#
-#     loss = meanLoss + varLoss + minloss + maxLoss + maxConstraint
-#     return loss
-
-def uniformLoss(curState, dataIndex, YhatFull, targetMin = 0, targetMax = 0.99, maxConstraintFactor = 10):
-    data = curState.detach().clone()
-    data[dataIndex, :] = YhatFull
-
+def uniformLoss(data, targetMin = 0, targetMax = 0.99, maxConstraintFactor = 1):
     targetMean = (targetMax-targetMin)/2
     targetVar= (targetMax-targetMin)**2/12
-
-    factor = 1
-    meanFactor = factor
-    varFactor = factor
-    minFactor = factor
-    maxFactor = factor
-    maxConstraintFactor = factor * maxConstraintFactor
 
     nodeMean = torch.mean(data, dim=0)
     nodeVar = torch.mean(torch.square(data-nodeMean), dim=0)
     maxVal, _ = torch.max(data, dim=0)
     minVal, _ = torch.min(data, dim=0)
 
-    meanLoss = meanFactor * torch.sum(torch.square(nodeMean - targetMean))
-    varLoss =  varFactor * torch.sum(torch.square(nodeVar - targetVar))
-    maxLoss = maxFactor * torch.sum(torch.square(maxVal - targetMax))
-    minloss = minFactor * torch.sum(torch.square(minVal- targetMin))
+    meanLoss = torch.sum(torch.square(nodeMean - targetMean))
+    varLoss =  torch.sum(torch.square(nodeVar - targetVar))
+    maxLoss = torch.sum(torch.square(maxVal - targetMax))
+    minloss = torch.sum(torch.square(minVal- targetMin))
     maxConstraint = -maxConstraintFactor * torch.sum(maxVal[maxVal.detach()<=0]) #max value should never be negative
 
     loss = meanLoss + varLoss + minloss + maxLoss + maxConstraint
     return loss
+
+# def uniformLoss(curState, dataIndex, YhatFull, targetMin = 0, targetMax = 0.99, maxConstraintFactor = 10):
+#     data = curState.detach().clone()
+#     data[dataIndex, :] = YhatFull
+#
+#     targetMean = (targetMax-targetMin)/2
+#     targetVar= (targetMax-targetMin)**2/12
+#
+#     factor = 1
+#     meanFactor = factor
+#     varFactor = factor
+#     minFactor = factor
+#     maxFactor = factor
+#     maxConstraintFactor = factor * maxConstraintFactor
+#
+#     nodeMean = torch.mean(data, dim=0)
+#     nodeVar = torch.mean(torch.square(data-nodeMean), dim=0)
+#     maxVal, _ = torch.max(data, dim=0)
+#     minVal, _ = torch.min(data, dim=0)
+#
+#     meanLoss = meanFactor * torch.sum(torch.square(nodeMean - targetMean))
+#     varLoss =  varFactor * torch.sum(torch.square(nodeVar - targetVar))
+#     maxLoss = maxFactor * torch.sum(torch.square(maxVal - targetMax))
+#     minloss = minFactor * torch.sum(torch.square(minVal- targetMin))
+#     maxConstraint = -maxConstraintFactor * torch.sum(maxVal[maxVal.detach()<=0]) #max value should never be negative
+#
+#     loss = meanLoss + varLoss + minloss + maxLoss + maxConstraint
+#     return loss
 
 
 class cellLayer(torch.nn.Module):
@@ -97,21 +102,22 @@ class fullModel(torch.nn.Module):
     def __init__(self, nodeNames, inNames, outName, networkList, modeOfAction, inputAmplitude,projectionAmplitude):
         super(fullModel, self).__init__()
 
-        bionetParams = bionetwork.trainingParameters(iterations=100, clipping=1, targetPrecision=1e-6, leak=0.01)
+        bionetParams = bionetwork.trainingParameters(iterations=50, clipping=1, targetPrecision=1e-6, leak=0.01)
+        self.projectAmplitude = projectionAmplitude
 
         self.cellModel = cellLayer(len(nodeNames))
         self.inputLayer = bionetwork.projectInput(nodeNames, inNames, inputAmplitude, torch.double)
         self.signalingModel = bionetwork.bionet(networkList, len(nodeNames), modeOfAction, bionetParams, 'MML',
                                                 torch.double)
         self.projectionLayer = bionetwork.projectOutput(nodeNames, outName, projectionAmplitude, torch.double)
-        #self.bn = torch.nn.BatchNorm1d(len(outName), momentum=0.4,dtype=torch.double)
+        self.bn = torch.nn.BatchNorm1d(len(outName), momentum=0.25,dtype=torch.double)
 
     def forward(self, dataIn, dataCell, noiseLevel=0):
         Yin = self.inputLayer(dataIn) + self.cellModel(dataCell)
         Yin = Yin + noiseLevel * torch.randn(Yin.shape)
         YhatFull = self.signalingModel(Yin)
         Yhat = self.projectionLayer(YhatFull)
-        #Yhat = self.bn(Yhat)
+        Yhat = self.bn(Yhat)
 
         return Yhat, YhatFull
 
@@ -123,7 +129,10 @@ class fullModel(torch.nn.Module):
         weightLoss = L2 * torch.sum(torch.square(self.signalingModel.weights[absFilter.detach()]))
         biasLoss = L2 * torch.sum(torch.square(self.signalingModel.bias))
 
-        L2Loss = weightLoss + biasLoss + cellL2
+        #projectOutputL2 = L2 * torch.sum(torch.square(self.projectionLayer.weights - self.projectAmplitude))
+        projectOutputL2 = L2 * torch.sum(torch.square(self.projectionLayer.weights))
+
+        L2Loss = weightLoss + biasLoss + cellL2 + projectOutputL2
         return L2Loss
 
     def signRegularization(self, MoAFactor):
@@ -133,7 +142,7 @@ class fullModel(torch.nn.Module):
         return signConstraints
 
 
-inputAmplitude = 1.2
+inputAmplitude = 1.0
 projectionAmplitude = 0.1
 
 # Load network
@@ -141,23 +150,22 @@ networkList, nodeNames, modeOfAction = bionetwork.loadNetwork('../preprocessing/
 
 # Load input output data
 #Load samples
-train_samples = pandas.read_csv('../data/10fold_cross_validation/Ligands/train_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
+train_samples = pandas.read_csv('../data/10fold_cross_validation/Ligand_old/train_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
 train_samples = train_samples.sample(frac=1).reset_index(drop=True)
-train_samples = train_samples.iloc[0:260] # to get a quick model
-train_samples = train_samples.sample(frac=1).reset_index(drop=True) # to get a quick model
 #Load TFs
-TFsData = pandas.read_csv('../results/trimmed_ligands_tf_activities.tsv',sep='\t', low_memory=False,index_col=0)
+TFsData = pandas.read_csv('../results/trimmed_ligands_old_tf_activities.tsv',sep='\t', low_memory=False,index_col=0)
+TFsData = TFsData.loc[:,numpy.intersect1d(TFsData.columns,nodeNames)]
 trainTFs = TFsData.loc[train_samples.sig_id.values,:]
 outName = list(trainTFs.columns)
 #Load KDs
-allLigands = pandas.read_csv('../results/Ligands_conditions.tsv',sep='\t', low_memory=False,index_col=0)
+allLigands = pandas.read_csv('../results/Ligands_conditions_old.tsv',sep='\t', low_memory=False,index_col=0)
 inName = list(allLigands.columns)
 trainLigands = allLigands.loc[train_samples.sig_id.values,:]
 #Load cell line data
-cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells_ligand.tsv', sep='\t', low_memory=False, index_col=0)
+cellLineMember = pandas.read_csv('../preprocessing/preprocessed_data/all_filtered_cells_ligand_old.tsv', sep='\t', low_memory=False, index_col=0)
 cellLineMember = cellLineMember.set_index('sig_id')
 TrainCellLineMember = cellLineMember.loc[train_samples.sig_id.values,:]
-cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle_ligands.tsv', sep='\t', low_memory=False, index_col=0)
+cellLineLevels = pandas.read_csv('../data/CCLE/trimmed_ccle_ligands_old.tsv', sep='\t', low_memory=False, index_col=0)
 cellLineLevels = cellLineLevels.loc[cellLineMember.columns,:]
 # scaler = StandardScaler()
 # cellLineLevels_scaled = pandas.DataFrame(scaler.fit_transform(cellLineLevels))
@@ -176,10 +184,9 @@ geneData = cellLineLevels_scaled.values.dot(TrainCellLineMember.values.T).T
 # Build model
 model = fullModel(nodeNames, inName, outName, networkList, modeOfAction, inputAmplitude, projectionAmplitude)
 model.signalingModel.preScaleWeights()
-model.inputLayer.weights.requires_grad = False
-#model.projectionLayer.weights.requires_grad = False
-# model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
+#model.signalingModel.bias.data[numpy.isin(nodeNames, outName)] = 0.5 # put all TFs in 0.5 to begin
 model.signalingModel.bias.data[numpy.isin(nodeNames, inName)] = 1  #Begin with signalal from all ligands
+model.inputLayer.weights.requires_grad = False
 
 criterion = torch.nn.MSELoss()
 
@@ -189,18 +196,18 @@ Xcell = torch.tensor(geneData, dtype=torch.double)
 Y = torch.tensor(trainTFs.values.copy(), dtype=torch.double)
 
 #Setup optimizer
-batchSize = 24 #128
+batchSize = 128 # itan 128 gia to v2
 MoAFactor = 0.1
 spectralFactor = 1e-3
-maxIter = 500 #1000
-noiseLevel = 1e-3 #1e-4
-L2 = 1e-6 #1e-7
+maxIter = 1000
+noiseLevel = 1e-4
+L2 = 1e-7
 
 referenceState = copy.deepcopy(model.state_dict())
-optimizer = torch.optim.Adam(model.parameters(), lr=1.0, weight_decay=0)
+optimizer = torch.optim.Adam(model.parameters(), lr=1, weight_decay=0)
 # scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-#                                            step_size=400,
-#                                            gamma=0.1)
+#                                           step_size=100,
+#                                           gamma=0.1)
 resetState = optimizer.state.copy()
 
 mLoss = criterion(torch.mean(Y, dim=0) * torch.ones(Y.shape), Y)
@@ -212,10 +219,10 @@ e = 0
 trainLoss = []
 mseLoss = []
 spectral_r = []
-curState = torch.rand((Y.shape[0], model.signalingModel.bias.shape[0]), dtype=torch.double, requires_grad=False)
+# curState = torch.rand((Y.shape[0], model.signalingModel.bias.shape[0]), dtype=torch.double, requires_grad=False)
 
 for e in range(e, maxIter):
-    curLr = bionetwork.oneCycle(e, maxIter, maxHeight=2e-3, startHeight=1e-5, endHeight=2e-3, peak=5)
+    curLr = bionetwork.oneCycle(e, maxIter, maxHeight=2e-3, startHeight=1e-5, endHeight=1e-3, peak=10)
     optimizer.param_groups[0]['lr'] = curLr
     curLoss = []
     curEig = []
@@ -232,21 +239,21 @@ for e in range(e, maxIter):
         #dataCell = dataCell + noiseLevel * torch.randn(dataCell.shape)
         Yhat, YhatFull = model(dataIn, dataCell, noiseLevel)
         
-        curState[dataIndex, :] = YhatFull.detach()
+        #curState[dataIndex, :] = YhatFull.detach()
 
         fitLoss = criterion(dataOut, Yhat)
 
-        stateLoss = 1e-5 * uniformLoss(curState, dataIndex, YhatFull, maxConstraintFactor=50.)
-        # stateLoss = 1e-5 * uniformLoss(YhatFull,maxConstraintFactor=10.)
+
+        stateLoss = 1e-5 * uniformLoss(YhatFull,maxConstraintFactor=10.) #itan 50 gia to v2
         L2Loss = model.L2Regularization(L2)
         signConstraint = model.signRegularization(MoAFactor)
 
         spectralRadiusLoss, spectralRadius = bionetwork.spectralLoss(model.signalingModel, YhatFull.detach(),
                                                                      model.signalingModel.weights, expFactor=5)
 
-        projectionLoss = 1e-6 * torch.sum(torch.square(model.projectionLayer.weights - projectionAmplitude))
+        #projectionLoss = 1e-6 * torch.sum(torch.square(model.projectionLayer.weights - projectionAmplitude))
 
-        loss = fitLoss + signConstraint + stateLoss + L2Loss  + spectralFactor * spectralRadiusLoss + projectionLoss
+        loss = fitLoss + signConstraint + stateLoss + L2Loss  + spectralFactor * spectralRadiusLoss
 
         loss.backward()
 
@@ -258,25 +265,27 @@ for e in range(e, maxIter):
 
     # stats = plotting.storeProgress(stats, e, curLoss, curEig, curLr, violations=model.signalingModel.getNumberOfViolations())
 
+    violations = model.signalingModel.getNumberOfViolations()
+
     outString = 'Epoch={:.0f}/{:.0f}'.format(e + 1, maxIter)
     outString += ',Loss={:.4f}'.format(loss.item())
     outString += ',MSE={:.4f}'.format(fitLoss.item())
     outString += ',State Loss={:.4f}'.format(stateLoss.item())
     outString += ',L2 Loss={:.5f}'.format(L2Loss.item())
-    outString += ',Project L2={:.4f}'.format(projectionLoss.item())
     outString += ',Sign Loss={:.4f}'.format(signConstraint.item())
     outString += ',Spectral Loss={:.4f}'.format(spectralRadiusLoss.item())
+    outString += ',Violations={:.1f}'.format(violations.item())
     trainLoss.append(loss.item())
     mseLoss.append(fitLoss.item())
     if e % 10 == 0:
         print(outString)
 
-    if numpy.logical_and(e % 20 == 0, e>0):
-       optimizer.state = resetState.copy()
+    # if numpy.logical_and(e % 250 == 0, e>0):
+    #    optimizer.state = resetState.copy()
 
 model.eval()
 Yhat, YhatFull = model(X,Xcell)
-torch.save(model, '../results/crossValRes/ligands/model_' + str(curentId) + '.pt')
+torch.save(model, '../results/crossValRes/ligands/model_v3_' + str(curentId) + '.pt')
 
 # %%
 spectralCapacity = numpy.exp(numpy.log(1e-6) / model.signalingModel.param['iterations'])
@@ -292,7 +301,7 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.yscale('log')
 plt.show()
-plt.savefig('../figures/crossValRes/ligands/training_loss_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/training_loss_v3_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.plot(T, mseLoss)
@@ -302,7 +311,7 @@ plt.ylabel('MSE')
 plt.xlabel('Epoch')
 plt.yscale('log')
 plt.show()
-plt.savefig('../figures/crossValRes/ligands/training_mse_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/training_mse_v3_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 plt.scatter(Yhat.detach().numpy(), Y.detach().numpy(), alpha=0.2)
@@ -314,13 +323,13 @@ plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
 plt.show()
-plt.savefig('../figures/crossValRes/ligands/fit_performance_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/fit_performance_v3_' + str(curentId) + '.png', dpi=600)
 
 plt.rcParams["figure.figsize"] = (12, 10)
 plt.figure()
 rank = plotting.compareAllTFs(Yhat, Y, outName)
 plt.show()
-plt.savefig('../figures/crossValRes/ligands/perTF_fit_train_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/perTF_fit_train_v3_' + str(curentId) + '.png', dpi=600)
 # plt.figure()
 # rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
 # plt.show()
@@ -330,18 +339,18 @@ plt.savefig('../figures/crossValRes/ligands/perTF_fit_train_' + str(curentId) + 
 # plt.savefig('../figures/crossValRes/heatmap_' + str(curentId) + '.png', dpi=600)
 
 fitData = pandas.DataFrame(Yhat.detach().numpy(), index=sampleName, columns=outName)
-fitData.to_csv('../results/crossValRes/ligands/fit_' + str(curentId) + '.tsv', sep='\t')
+fitData.to_csv('../results/crossValRes/ligands/fit_v3_' + str(curentId) + '.tsv', sep='\t')
 
 plt.figure()
 plt.hist(spectral_r)
-plt.savefig('../figures/crossValRes/ligands/spectral_r_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/spectral_r_v3_' + str(curentId) + '.png', dpi=600)
 
 ## Validation
-val_samples = pandas.read_csv('../data/10fold_cross_validation/Ligands/val_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
+val_samples = pandas.read_csv('../data/10fold_cross_validation/Ligand_old/val_sample_' + str(curentId) + '.csv', low_memory=False,index_col=0)
 #Load TFs
 valTFs = TFsData.loc[val_samples.sig_id.values,:]
 #Load KDs
-valLigands = valLigands.loc[val_samples.sig_id.values,:]
+valLigands = allLigands.loc[val_samples.sig_id.values,:]
 #Load cell line data
 ValCellLineMember = cellLineMember.loc[val_samples.sig_id.values,:]
 geneData = cellLineLevels_scaled.values.dot(ValCellLineMember.values.T).T
@@ -362,11 +371,11 @@ plt.gca().axis('equal')
 plt.gca().set_xticks([0, 0.5, 1])
 plt.gca().set_yticks([0, 0.5, 1])
 plt.show()
-plt.savefig('../figures/crossValRes/ligands/validation_performance_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/validation_performance_v3_' + str(curentId) + '.png', dpi=600)
 
 plt.figure()
 rank = plotting.compareAllTFs(Yhat, Y, outName)
-plt.savefig('../figures/crossValRes/ligands/perTF_fit_validation_' + str(curentId) + '.png', dpi=600)
+plt.savefig('../figures/crossValRes/ligands/perTF_fit_validation_v3_' + str(curentId) + '.png', dpi=600)
 # plt.figure()
 # rank = plotting.compareAllTFs(Yhat.T, Y.T, sampleName)
 # plt.savefig('../figures/crossValRes/ligands/perSample_fit_validation_' + str(curentId) + '.png', dpi=600)

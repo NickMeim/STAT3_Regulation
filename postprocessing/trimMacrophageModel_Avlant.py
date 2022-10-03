@@ -79,8 +79,8 @@ def subsetOnSource(df, coreSources):
     return df
 
 
-coreSources = ['KEGG', 'InnateDB','SIGNOR']
-
+# coreSources = ['KEGG', 'InnateDB','SIGNOR']
+coreSources = ['KEGG']
 
 #Load and trim PKN
 PKN = pd.read_csv('../preprocessing/preprocessed_data/pknL1000_ligands.tsv', sep='\t', low_memory=False)
@@ -155,7 +155,8 @@ allLigands = numpy.intersect1d(allLigands, PKN['source'])
 allTFs = numpy.intersect1d(allTFs, PKN['target'])
 
 
-PKN.to_csv('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model_uniprot.tsv', sep='\t', index=False)
+# PKN.to_csv('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Model_uniprot.tsv', sep='\t', index=False)
+PKN.to_csv('../preprocessing/preprocessed_data/KEGG_Ligands-Model.tsv', sep='\t', index=False)
 
 
 #Build annotation file
@@ -171,5 +172,6 @@ annotation = annotation.drop_duplicates(subset='code', keep='first')
 annotation['name'] = annotation['name'].str.replace('; ','/')
 annotation['TF'] = numpy.isin(annotation['code'], allTFs)
 annotation['ligand'] = numpy.isin(annotation['code'], allLigands)
-annotation.to_csv('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Annotation_uniprot.tsv', sep='\t', index=False)
+# annotation.to_csv('../preprocessing/preprocessed_data/macrophageL1000_Ligands-Annotation_uniprot.tsv', sep='\t', index=False)
+annotation.to_csv('../preprocessing/preprocessed_data/KEGG_Ligands-Annotation.tsv', sep='\t', index=False)
 
