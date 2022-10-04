@@ -17,7 +17,7 @@ EP300	other
 MAPK3	other
 MAPK1	other
 BCL2L1	other
-BAD	GSEA
+BAD	other
 PDPK1	latent
 HDAC2	other
 PRKCA	other

@@ -36,7 +36,7 @@ sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
 
 # Read distance pre-processed data (see preprocessingDistances.R 
 # in preprocessing folderfor details)
-dist <- readRDS('../preprocessing/preprocessed_data/dupl_mean_dist.rds')
+dist <- readRDS('../preprocessing/preprocessed_data/dupl_shRNA_mean_dist_long.rds')
 
 
 # Thresholds of tas numbers to split dataset.
@@ -88,7 +88,7 @@ for (i in 1:length(tas_thresholds_upper)){
 png(file="duplicate_vs_random_distribution_shrna.png",width=16,height=8,units = "in",res=300)
 
 p <- ggarrange(plotlist=plotList,ncol=4,nrow=2,common.legend = TRUE,legend = 'right',
-               labels = paste0(c('TAS>=0.15','TAΣ>=0.2','TAS>=0.25','TAS>=0.3','TAS>=0.35',
+               labels = paste0(c('TAS>=0.15','TAS>=0.2','TAS>=0.25','TAS>=0.3','TAS>=0.35',
                                  'TAS>=0.4','TAS>=0.45','TAS>=0.5'),',Number of signatures:',num_of_sigs),
                font.label = list(size = 10, color = "black", face = "plain", family = NULL),
                hjust=-0.15)

@@ -41,6 +41,26 @@ sigInfo <- sigInfo %>%
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
 
+shRNA_kd_significance <- function(sig,sigInfo,cmap){
+  gene <- sigInfo$cmap_name[which(sigInfo$sig_id==sig)]
+  cell <- sigInfo$cell_iname[which(sigInfo$sig_id==sig)]
+  if (gene %in% rownames(cmap)){
+    value <- cmap[gene,sig]
+    data <- sigInfo %>% filter(cell_iname==cell)
+    null_cell_distribution <- cmap[gene,data$sig_id]
+    pval <- sum(null_cell_distribution<=value)/length(null_cell_distribution)
+  }else{
+    pval <- NA
+  }
+  return(pval)
+}
+#p.values <- sapply(sigInfo$sig_id,shRNA_kd_significance,sigInfo,cmap)
+#print(all(names(p.values)==sigInfo$sig_id))
+#saveRDS(p.values,'../results/shRNAs_significance.rds')
+p.values <- readRDS('../results/shRNAs_significance.rds')
+sigInfo$p.value <- p.values
+sigInfo <- sigInfo %>% filter(!is.na(p.value)) %>% filter(p.value<0.05)
+
 ### Load gene expression data----
 
 # Split sig_ids to run in parallel

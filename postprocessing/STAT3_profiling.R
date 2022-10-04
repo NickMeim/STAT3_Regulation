@@ -36,8 +36,6 @@ sigInfo <- sigInfo %>%
 sigInfo <- sigInfo %>% filter(pert_type=='trt_sh')
 sigInfo <- sigInfo %>% filter(quality_replicates==1)
 
-#sigInfo <- sigInfo %>% filter(tas>=0.25) # We keep all of them since they are statistically significant to have more hits
-
 # Create identifier to signify duplicate
 # signatures: meaning same drug, same dose,
 # same time duration, same cell-type
@@ -46,6 +44,28 @@ sigInfo <- sigInfo %>%
 
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
+
+shRNA_kd_significance <- function(sig,sigInfo,cmap){
+  gene <- sigInfo$cmap_name[which(sigInfo$sig_id==sig)]
+  cell <- sigInfo$cell_iname[which(sigInfo$sig_id==sig)]
+  if (gene %in% rownames(cmap)){
+    value <- cmap[gene,sig]
+    data <- sigInfo %>% filter(cell_iname==cell)
+    null_cell_distribution <- cmap[gene,data$sig_id]
+    pval <- sum(null_cell_distribution<=value)/length(null_cell_distribution)
+  }else{
+    pval <- NA
+  }
+  return(pval)
+}
+#p.values <- sapply(sigInfo$sig_id,shRNA_kd_significance,sigInfo,cmap)
+#print(all(names(p.values)==sigInfo$sig_id))
+#saveRDS(p.values,'../results/shRNAs_significance.rds')
+p.values <- readRDS('../results/shRNAs_significance.rds')
+sigInfo$p.value <- p.values
+sigInfo <- sigInfo %>% filter(!is.na(p.value)) %>% filter(p.value<0.05)
+
+#sigInfo <- sigInfo %>% filter(tas>=0.25) # We keep all of them since they are statistically significant to have more hits
 
 ### Keep only STAT3 knockdowns
 sigInfo <- sigInfo %>% filter(cmap_name=='STAT3')
@@ -247,8 +267,13 @@ keegEnrichResults <-  fastenrichment(sigInfo$sig_id,
 keggNES <- keegEnrichResults$NES$`NES KEGG`
 keggpadj <- keegEnrichResults$Pval$`Pval KEGG`
 
-saveRDS(keggNES,'../results/keggNES_STAT3.rds')
-saveRDS(keggpadj,'../results/keggpadj_STAT3.rds')
+# saveRDS(keggNES,'../results/keggNES_STAT3.rds')
+# saveRDS(keggpadj,'../results/keggpadj_STAT3.rds')
+keggNES <- readRDS('../results/keggNES_STAT3.rds')
+keggpadj <- readRDS('../results/keggpadj_STAT3.rds')
+
+keggNES <- keggNES[,as.character(sigInfo$sig_id)]
+keggpadj <- keggpadj[,as.character(sigInfo$sig_id)]
 
 # Get significantly regulated pathways
 # get_signigicant <- function(pvals,level=0.05){
@@ -291,7 +316,7 @@ dev.off()
 
 # Find the downregulated ones and get their genes as potential targets
 # Compare their available shRNAs with STAT3 shRNA
-pathways_down <- rownames(keggNES_signigicants_mean)[which(keggNES_signigicants_mean<(-0.3))]
+pathways_down <- rownames(keggNES_signigicants_mean)[which(keggNES_signigicants_mean<=(-0.3))]
 
 split_geneset_id <- function(name,pattern){
   new_name <- str_split(name,pattern)[[1]][2]
@@ -343,6 +368,25 @@ sigInfo <- sigInfo %>%
 
 sigInfo <- sigInfo %>% group_by(duplIdentifier) %>%
   mutate(dupl_counts = n()) %>% ungroup()
+
+# shRNA_kd_significance <- function(sig,sigInfo,cmap){
+#   gene <- sigInfo$cmap_name[which(sigInfo$sig_id==sig)]
+#   cell <- sigInfo$cell_iname[which(sigInfo$sig_id==sig)]
+#   if (gene %in% rownames(cmap)){
+#     value <- cmap[gene,sig]
+#     data <- sigInfo %>% filter(cell_iname==cell)
+#     null_cell_distribution <- cmap[gene,data$sig_id]
+#     pval <- sum(null_cell_distribution<=value)/length(null_cell_distribution)
+#   }else{
+#     pval <- NA
+#   }
+#   return(pval)
+# }
+# #p.values <- sapply(sigInfo$sig_id,shRNA_kd_significance,sigInfo,cmap)
+# #print(all(names(p.values)==sigInfo$sig_id))
+# p.values <- readRDS('../results/shRNAs_significance.rds')
+# sigInfo$p.value <- p.values
+# sigInfo <- sigInfo %>% filter(!is.na(p.value)) %>% filter(p.value<0.05)
 
 # Load gene candidates
 df_gene_canditates <- readRDS('../results/gene_candidates.rds')
