@@ -85,7 +85,8 @@ pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
   xlab('PC1') + ylab('PC2')+
   scale_color_manual(values =c("other"="#BFBFBF","STAT3"="#E46D25")) +
   geom_point(data = subset(df_pca, shRNA != 'other'),aes(x = PC1, y = PC2, color = shRNA))+
-  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+  theme_minimal()+
+  theme(text = element_text(size=20),plot.title = element_text(hjust = 0.5))
 print(pca_plot)
 png('pca_2d_stat3.png',width=12,height=8,units = "in",res=300)
 print(pca_plot)
@@ -138,7 +139,8 @@ pca_plot <- ggplot(df_pca, aes(PC1, PC2),alpha=0.2)+
   xlab('PC1') + ylab('PC2')+
   scale_color_manual(values = c("25"="#E46D25","73"="#008080","91"="#800080","other"="#BFBFBF")) +
   geom_point(data = subset(df_pca, cluster != 'other'),aes(x = PC1, y = PC2, color = cluster))+
-  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+  theme_minimal()+
+  theme(text = element_text(size=20),plot.title = element_text(hjust = 0.5))
 print(pca_plot)
 png('pca_2d_clusters.png',width=12,height=8,units = "in",res=300)
 print(pca_plot)

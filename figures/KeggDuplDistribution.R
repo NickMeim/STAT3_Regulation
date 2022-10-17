@@ -47,7 +47,7 @@ p <- ggplot(dist,aes(x=value)) +
     geom_vline(xintercept=0.3, linetype="dashed", color = "red")+
     labs(title="KEGG pathways GSEA distance of duplicate shRNAs",x="GSEA Distance", y = "Density")+
     xlim(c(0,1))+#xlim(c(min(df_dist$value),max(df_dist$value)))+
-    theme_classic() + theme(text = element_text(size=10),
+    theme_classic() + theme(text = element_text(size=20),
                             legend.position="none",plot.title=element_text(hjust = 0.5))
 print(p)
 

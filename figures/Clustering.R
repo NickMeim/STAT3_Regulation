@@ -91,7 +91,8 @@ p <- ggplot(stat3_cluster,aes(x=clusters,y=proportion,fill=p_vals))  + geom_bar(
   geom_signif(
     y_position = c(0.18, 0.12,0.12), xmin = c(1, 4,5), xmax = c(1, 4,5),
     annotation = c("**", "**","**"), tip_length = 0)+
-  theme(text = element_text(size=15),plot.title = element_text(hjust = 0.5))
+  theme_minimal()+
+  theme(text = element_text(size=20),plot.title = element_text(hjust = 0.5))
 print(p)
 
 png('cluster_proportion_barplot.png',width=12,height=8,units = "in",res=300)

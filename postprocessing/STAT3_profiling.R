@@ -99,10 +99,10 @@ cmap_gctx <- foreach(sigs = sigList) %dopar% {
 cmap <-do.call(cbind,cmap_gctx)
 
 col_fun = colorRamp2(c(-4, 0, 4), c("red", "white", "blue"))
-png('../figures/STAT3_GeX.png',width=16,height=8,units = "in",res=300)
+png('../figures/STAT3_GeX.png',width=12,height=8,units = "in",res=300)
 Heatmap(cmap, col=col_fun,
-        row_title = 'Genes',
-        column_title = 'Samples',
+        row_title = '',#'Genes',
+        column_title ='', #'Samples',
         show_row_names =F,
         show_column_names  =F,
         heatmap_legend_param = list(title = 'z-score'))
@@ -293,7 +293,7 @@ df_kegg <- gather(as.data.frame(keggNES_signigicants) %>% rownames_to_column('Pa
                   'Samples','NES',-Pathways)
 png(file="../figures/keggHeatmap.png",width=16,height=8,units = "in",res=600)
 ggplot(df_kegg, aes(Samples,Pathways, fill= NES)) + 
-  geom_tile()+theme(axis.text.x=element_blank(),text = element_text(size=20))+
+  geom_tile()+theme(axis.text.x=element_blank(),text = element_text(size=25))+
   theme(plot.title = element_text(hjust = 0.5))+
   scale_fill_gradient2()+ ggtitle("STAT3 regulated pathways")
 
@@ -307,7 +307,7 @@ ggplot(df_kegg_mean, aes(V1,Pathways, fill= V1)) + ylab('Pathways')+xlab('NES')+
   guides(fill=guide_legend(title="NES"))+
   geom_bar(stat='identity')+
   theme_classic()+
-  theme(text = element_text(size=20),
+  theme(text = element_text(size=25),
         plot.title = element_text(hjust = 0.5),
         legend.position="none")+
   scale_fill_gradient2()+ ggtitle("Average NES")
